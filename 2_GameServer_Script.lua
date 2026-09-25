@@ -297,6 +297,11 @@ local function renderBase(player)
 		plot.DownPrompts[k + 1].Enabled = d.FloorLvl >= k
 	end
 	plot.SignLabel.Text = player.DisplayName .. "'s Base" .. (locked and "  [LOCKED]" or "")
+	local face = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(player.UserId)
+	plot.SignFace.Image = face
+	plot.SignFace.Visible = true
+	plot.GateFace.Image = face
+	plot.FaceGui.Enabled = true
 
 	for s = 1, Config.TotalSlots do
 		local ped, ring = plot.Pedestals[s], plot.Rings[s]
@@ -437,6 +442,8 @@ local function clearPlot(plot)
 		plot.DownPrompts[k + 1].Enabled = false
 	end
 	plot.SignLabel.Text = "Unclaimed"
+	plot.SignFace.Visible = false
+	plot.FaceGui.Enabled = false
 end
 
 ----------------------------------------------------------------
@@ -3601,12 +3608,16 @@ do -- scoped: FLOOR_H, SPF and useElevator are only used inside buildPlot, so fr
 		spawnPart.Parent = model
 		plot.Spawn = spawnPart
 
+		-- the name sign stands up on two posts (raised off the floor so it reads from across the plaza)
 		local sign = part({
 			Name = "Sign",
 			Size = Vector3.new(1, 7, 34),
-			Position = Vector3.new(-60.5, 4.5, zc),
+			Position = Vector3.new(-60.5, 14.5, zc),
 			Color = Color3.fromRGB(30, 30, 45),
 		}, model)
+		for _, sz in ipairs({ -1, 1 }) do
+			part({ Name = "SignPost", Size = Vector3.new(1, 11, 1), Position = Vector3.new(-60.5, 5.5, zc + sz * 15), Color = Color3.fromRGB(30, 30, 45) }, model)
+		end
 		local sg = Instance.new("SurfaceGui")
 		sg.Face = Enum.NormalId.Right
 		sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -3625,6 +3636,40 @@ do -- scoped: FLOOR_H, SPF and useElevator are only used inside buildPlot, so fr
 		signStroke.Color = Color3.new(0, 0, 0)
 		signStroke.Parent = signLabel
 		plot.SignLabel = signLabel
+		do
+			-- the owner's avatar face: on the left of the name sign, and floating above the entrance gate
+			signLabel.Position = UDim2.fromScale(0.2, 0)
+			signLabel.Size = UDim2.fromScale(0.78, 1)
+			local signFace = Instance.new("ImageLabel")
+			signFace.Name = "OwnerFace"
+			signFace.SizeConstraint = Enum.SizeConstraint.RelativeYY
+			signFace.Size = UDim2.fromScale(0.9, 0.9)
+			signFace.Position = UDim2.fromScale(0.05, 0.05)
+			signFace.BackgroundColor3 = color
+			signFace.Visible = false
+			signFace.Parent = sg
+			Instance.new("UICorner", signFace).CornerRadius = UDim.new(0.5, 0)
+			plot.SignFace = signFace
+
+			local faceBB = Instance.new("BillboardGui")
+			faceBB.Name = "OwnerFaceGui"
+			faceBB.Size = UDim2.fromOffset(90, 90)
+			faceBB.StudsOffset = Vector3.new(0, 5.5, 0)
+			faceBB.MaxDistance = 220
+			faceBB.Enabled = false
+			faceBB.Parent = model:FindFirstChild("GateBar")
+			local gateFace = Instance.new("ImageLabel")
+			gateFace.Size = UDim2.fromScale(1, 1)
+			gateFace.BackgroundColor3 = color
+			gateFace.Parent = faceBB
+			Instance.new("UICorner", gateFace).CornerRadius = UDim.new(0.5, 0)
+			local ring = Instance.new("UIStroke")
+			ring.Thickness = 4
+			ring.Color = color
+			ring.Parent = gateFace
+			plot.FaceGui = faceBB
+			plot.GateFace = gateFace
+		end
 
 		local function makePad(fm, pos, padColor, text, actionText, callback)
 			local pad = part({
