@@ -1766,18 +1766,25 @@ do
 		for id, r in pairs(upgRows) do
 			local lvl = player:GetAttribute(UPG[id].attr) or 0
 			local max = Config.Upgrades[id].Max
+			local luckCap = id == "Luck" and (player:GetAttribute("LuckMax") or max) or max -- Luck levels unlock with Rebirths
 			r.Title.Text = ("%s   Lv %d/%d"):format(Config.Upgrades[id].Label, lvl, max)
 			r.Fill.Size = UDim2.fromScale(math.clamp(lvl / max, 0, 1), 1)
 			local floorsLvl = player:GetAttribute("FloorsLvl") or 0
 			if lvl >= max then
 				r.Desc.Text = "MAXED OUT!"
 				setBtn(r.Btn, "MAX", GREY)
+			elseif lvl >= luckCap then
+				r.Desc.Text = ("%.1f%% mutate chance. REBIRTH to unlock more Luck levels!"):format(Config.LuckMutateChance(lvl) * 100)
+				setBtn(r.Btn, "REBIRTH", GREY)
 			elseif id == "Slots" and 4 + lvl >= Config.SlotsPerFloor * (1 + floorsLvl) then
 				r.Desc.Text = "Floors full - build a Base Floor first!"
 				setBtn(r.Btn, "FULL", GREY)
 			else
 				local cost = Config.UpgradeCost(id, lvl)
 				r.Desc.Text = Config.Upgrades[id].Desc
+				if id == "Luck" then
+					r.Desc.Text = ("Mutate chance when you grab a Goober: %.1f%% -> %.1f%%"):format(Config.LuckMutateChance(lvl) * 100, Config.LuckMutateChance(lvl + 1) * 100)
+				end
 				setBtn(r.Btn, "$" .. F(cost), cash >= cost and GREEN or GREY)
 			end
 		end

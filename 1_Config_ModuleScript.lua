@@ -598,7 +598,7 @@ Config.Upgrades = {
 	Carry = { Label = "Capacity", Desc = "Carry +1 Goober at once", Base = 400, Growth = 3.5 }, -- limit comes from Rebirths
 	Slots = { Label = "Base Slots", Desc = "+1 pedestal in your base", Max = 46, Base = 800, Growth = 1.4 },
 	Floors = { Label = "Base Floors", Desc = "Build a new floor (+10 slots)", Max = 4, Base = 25000, Growth = 6.5 },
-	Luck = { Label = "Luck", Desc = "Rarer Goobers from Lucky Boxes", Max = 10, Base = 1500, Growth = 2.1 },
+	Luck = { Label = "Luck", Desc = "Chance a Goober you grab turns MUTATED (+ better Lucky Boxes)", Max = 30, Base = 1500, Growth = 2.1 }, -- limit comes from Rebirths (Config.LuckMaxLevel)
 }
 -- Speed and Capacity are bought at the physical stands in the plaza, so they are not in the shop window.
 Config.UpgradeOrder = { "Slots", "Floors", "Luck" }
@@ -649,6 +649,41 @@ Config.Upgrades.Speed.Desc = "Run faster - up to the top speed"
 -- Capacity levels you can reach: 3 to start (carry 4). Every Rebirth unlocks 2 more levels.
 function Config.CarryMaxLevel(rebirths)
 	return 3 + (rebirths or 0) * 2
+end
+
+-- LUCK: every level gives a chance that a normal Goober you grab turns into a random mutation.
+-- Level 1 = 1%, rising slowly (the curve is steep at the end) up to 50% at level 30. More levels unlock with Rebirths.
+function Config.LuckMaxLevel(rebirths)
+	return math.min(Config.Upgrades.Luck.Max, 5 + (rebirths or 0) * 5) -- 5 levels to start, +5 per Rebirth (level 30 needs 5 Rebirths)
+end
+Config.LuckChanceCap = 0.5
+function Config.LuckMutateChance(luckLvl, luckMult)
+	if not luckLvl or luckLvl <= 0 then
+		return 0
+	end
+	local k = (math.min(luckLvl, Config.Upgrades.Luck.Max) - 1) / (Config.Upgrades.Luck.Max - 1)
+	return math.min(Config.LuckChanceCap, (0.01 + 0.49 * k * k) * (luckMult or 1))
+end
+-- which mutation a lucky grab becomes (never Normal); the current Mutation Hour's mutation is much likelier
+function Config.RollLuckyMutation(eventMut)
+	local total, weights = 0, {}
+	for _, name in ipairs(Config.MutationList) do
+		if name ~= "Normal" then
+			local w = Config.Mutations[name].Weight * (name == eventMut and Config.EventMutationBoost or 1)
+			weights[name] = w
+			total += w
+		end
+	end
+	local r = math.random() * total
+	for _, name in ipairs(Config.MutationList) do
+		if weights[name] then
+			r -= weights[name]
+			if r <= 0 then
+				return name
+			end
+		end
+	end
+	return "Golden"
 end
 
 function Config.CarryCap(carryLvl)
@@ -972,7 +1007,7 @@ function Config.RollLuckyGoober(luckLvl, premium, luckMult) -- the Lucky Box: AL
 	luckLvl = luckLvl or 0
 	local mythicBias = premium and 0.85 or 0.4 -- the Robux Lucky Box has much better odds at a Mythic
 	-- luck only boosts the MYTHIC weights (boosting every entry equally would cancel out and do nothing)
-	local luck = (1 + luckLvl * 0.15) * (luckMult or 1)
+	local luck = (1 + math.min(luckLvl, 30) * 0.05) * (luckMult or 1) -- (same max boost as before: x2.5 at the top level)
 	local pool, total = {}, 0
 	for _, g in ipairs(Config.Goobers) do
 		if g.Rarity == "Legendary" or g.Rarity == "Mythic" then

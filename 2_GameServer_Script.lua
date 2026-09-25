@@ -554,6 +554,7 @@ local function updateStats(player)
 	player:SetAttribute("PetCash", petCash)
 	player:SetAttribute("PetSpeed", petSpeed)
 	player:SetAttribute("CarryMax", Config.CarryMaxLevel(d.Rebirths))
+	player:SetAttribute("LuckMax", Config.LuckMaxLevel(d.Rebirths))
 	for _, it in ipairs(Config.ShopItems) do
 		player:SetAttribute("Price_" .. it.Id, shopPrice(d, it))
 	end
@@ -836,7 +837,13 @@ local function createPickup(item, pos, respawnZone, lifetime)
 		end
 		model:SetAttribute("Taken", true)
 		PickupInfo[model] = nil
-		table.insert(list, item)
+		local got = item
+		-- LUCK: a normal Goober can turn into a random mutation the moment YOU grab it (your own Luck level decides the chance)
+		if got.Mut == "Normal" and rng:NextNumber() < Config.LuckMutateChance(d.LuckLvl, perksOf(d).Luck) then
+			got = { Id = item.Id, Mut = Config.RollLuckyMutation(MutationEvent or nil), Zone = item.Zone }
+			notify(player, ("🍀 LUCKY! It turned %s!"):format(got.Mut:upper()), GOLD, "reveal")
+		end
+		table.insert(list, got)
 		syncCarry(player)
 		notify(player, "", col, "grab")
 		model:Destroy()
@@ -1581,6 +1588,8 @@ local function buyUpgrade(player, name, count)
 	local max = def.Max or math.huge
 	if name == "Carry" then
 		max = Config.CarryMaxLevel(d.Rebirths) -- more capacity needs Rebirths
+	elseif name == "Luck" then
+		max = Config.LuckMaxLevel(d.Rebirths) -- more luck needs Rebirths too
 	elseif name == "Slots" then
 		max = math.min(max, Config.SlotsPerFloor * (1 + d.FloorLvl) - 4)
 	end
@@ -1588,6 +1597,8 @@ local function buyUpgrade(player, name, count)
 	if room <= 0 then
 		if name == "Carry" then
 			notify(player, "Rebirth to unlock more capacity!", GOLD, "error")
+		elseif name == "Luck" and lvl < def.Max then
+			notify(player, "Rebirth to unlock more Luck!", GOLD, "error")
 		elseif name == "Slots" then
 			notify(player, "Build a new Base Floor first!", RED)
 		else
