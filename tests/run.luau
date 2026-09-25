@@ -156,3 +156,14 @@ print("---- errors total:", #E.__shared.ERRORS)
 for _, e in ipairs(E.__shared.ERRORS) do
 	print("ERR", e:sub(1, 600))
 end
+-- "!robux" diagnostics for the host
+local n2 = #E.__shared.LOG
+plr.Chatted:Fire("!robux")
+E.__STEP(1)
+for i = n2 + 1, #E.__shared.LOG do
+	local l = E.__shared.LOG[i]
+	if l:find("ChatAnnounce") then
+		print("  !robux", l:sub(1, 200))
+	end
+end
+print("---- errors total:", #E.__shared.ERRORS)

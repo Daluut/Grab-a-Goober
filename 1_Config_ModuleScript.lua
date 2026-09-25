@@ -303,6 +303,7 @@ Config.Market = {
 Config.Leaderboards = { Version = "v1", Refresh = 60, Size = 10, Season = "launch" } -- Season: Most Money + Most Rebirths start fresh (Top Donators never resets)
 -- SAVE SLOT: every player's progress is stored under this prefix. Changing it = a full progress reset for everyone
 -- (old saves are kept untouched; donations and Robux-bought pet slots are carried over automatically - see loadData).
+Config.BuildVersion = "launch-5" -- shown to the owner when they join + in "!robux": proves which code a server is running
 Config.SaveSlot = "L1_" -- "L1_" = the public launch (the testing saves were "P_")
 Config.OldSaveSlot = "P_"
 

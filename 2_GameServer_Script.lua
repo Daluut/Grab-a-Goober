@@ -3267,11 +3267,18 @@ local function processReceiptInner(receipt)
 	return Enum.ProductPurchaseDecision.NotProcessedYet
 end
 
-MarketplaceService.ProcessReceipt = function(receipt)
+-- (globals, not locals: this file is close to Luau's 200-local limit)
+ReceiptStats = { Count = 0, Granted = 0, Last = "none yet" }
+GooberReceipt = function(receipt)
 	local pl = Players:GetPlayerByUserId(receipt.PlayerId)
 	local buyerName = pl and pl.Name or ("UserId " .. tostring(receipt.PlayerId))
 	print(("[ROBUX] %s is buying product %d (spent %s Robux)"):format(buyerName, receipt.ProductId, tostring(receipt.CurrencySpent)))
+	ReceiptStats.Count += 1
 	local ok, decision = pcall(processReceiptInner, receipt)
+	ReceiptStats.Last = ("product %d by %s -> %s"):format(receipt.ProductId, buyerName, ok and tostring(decision) or ("ERROR " .. tostring(decision)))
+	if ok and decision == Enum.ProductPurchaseDecision.PurchaseGranted then
+		ReceiptStats.Granted += 1
+	end
 	if not ok then
 		-- something errored INSIDE the purchase logic - never silently eat a real payment: log it loudly and tell
 		-- Roblox to retry later (NotProcessedYet), so the player still gets their item once this is fixed
@@ -3291,9 +3298,24 @@ MarketplaceService.ProcessReceipt = function(receipt)
 		-- Config doesn't match what's live on the Creator Dashboard (a typo, or the place wasn't republished after
 		-- the id was set) - check the Product ID column on the Dashboard against Config.Products / egg.Product3.
 		warn(("[ROBUX] product %d from %s matched NOTHING in Config - check the ids in Config.GamePasses/Config.Products against the Creator Dashboard. Roblox will keep retrying until this is fixed, so republishing with the correct id still grants it."):format(receipt.ProductId, buyerName))
+		for _, p in ipairs(Players:GetPlayers()) do -- tell the owner in-game too, so this can't go unnoticed
+			if isHost(p) then
+				notify(p, ("[ROBUX] Product id %d (bought by %s) is NOT in Config.Products - nothing was given!"):format(receipt.ProductId, buyerName), RED, "error")
+			end
+		end
 	end
 	return decision
 end
+MarketplaceService.ProcessReceipt = GooberReceipt
+-- Roblox allows only ONE purchase handler per game, and the LAST script to set it wins. If any other script (a free model
+-- such as a donation board, an old copy of this script, a plugin...) sets its own, our purchases silently stop working.
+-- So keep re-claiming it. ("!robux" in chat lists every other script in the game, to find the culprit.)
+task.spawn(function()
+	while true do
+		task.wait(5)
+		MarketplaceService.ProcessReceipt = GooberReceipt
+	end
+end)
 
 ----------------------------------------------------------------
 -- LIGHTING (pretty sky, glow and colors)
@@ -5956,6 +5978,32 @@ do
 	-- ADMIN CHAT COMMAND: "!wave rainbow" spawns that wave type right now ("!wave" lists them). Handy for testing each wave.
 	local function onChat(player, msg)
 		-- HOST ONLY: "!donor <userId> <robux>" credits a donation that didn't register (works even if they are offline)
+		if msg:lower():match("^!robux") and isHost(player) then
+			local function say(line)
+				UIRemote:FireClient(player, "ChatAnnounce", line)
+			end
+			say(("[ROBUX] server build: %s | receipts this server: %d (granted %d) | last: %s"):format(tostring(Config.BuildVersion), ReceiptStats.Count, ReceiptStats.Granted, ReceiptStats.Last))
+			say(("[ROBUX] saving: %s | your data loaded: %s"):format(Store and "ON" or "OFF (enable API access)", Data[player] and "yes" or "NO"))
+			local others = {}
+			for _, root in ipairs({ Workspace, game:GetService("ServerScriptService"), game:GetService("ServerStorage"), RS, game:GetService("StarterPlayer"), game:GetService("StarterGui"), game:GetService("ReplicatedFirst"), Lighting }) do
+				pcall(function()
+					for _, d in ipairs(root:GetDescendants()) do
+						if d:IsA("Script") and d ~= script and not d:IsA("LocalScript") then
+							table.insert(others, d:GetFullName())
+						end
+					end
+				end)
+			end
+			if #others == 0 then
+				say("[ROBUX] no other server scripts found - good")
+			else
+				say(("[ROBUX] %d OTHER server script(s) - any of them can steal purchases:"):format(#others))
+				for i = 1, math.min(#others, 12) do
+					say("   " .. others[i])
+				end
+			end
+			return
+		end
 		local uid, amt = msg:match("^!donor%s+(%d+)%s+(%d+)")
 		if uid and isHost(player) then
 			creditDonation(player, tonumber(uid), tonumber(amt))
@@ -6494,6 +6542,13 @@ local function onPlayerAdded(player)
 		task.spawn(pushLeaderboards, player) -- a returning donor's spot reappears on the board right away, not after a few seconds
 	end
 	task.spawn(applyDonationCredit, player, d) -- a donation the host credited while they were offline
+	if isHost(player) then
+		task.delay(4, function()
+			if player.Parent then
+				notify(player, ("Server build %s  -  type !robux in chat to check purchases"):format(tostring(Config.BuildVersion)), GOLD)
+			end
+		end)
+	end
 end
 
 -- pushLeaderboards is defined further below via `function pushLeaderboards(player) ... end`, deliberately left as a
