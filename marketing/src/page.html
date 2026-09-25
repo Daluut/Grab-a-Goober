@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:'Lilita One';src:url('../fonts/Lilita_One.ttf')}
+@font-face{font-family:'Luckiest Guy';src:url('../fonts/Luckiest_Guy.ttf')}
+@font-face{font-family:'Fredoka';src:url('../fonts/Fredoka_wght_700.ttf');font-weight:700}
+html,body{margin:0;padding:0;background:#000;overflow:hidden}
+svg{display:block}
+</style>
+<script src="art.js"></script>
+<script src="scenes.js"></script>
+</head><body><div id="stage"></div>
+<script>
+// ?mode=trailer|thumb|icon&n=...  - draw(t) renders one frame
+const q = new URLSearchParams(location.search);
+window.MODE = q.get("mode") || "sheet";
+window.N = +(q.get("n") || 1);
+window.draw = function (t) {
+	const [w, h, body] = SCENES[MODE](t, N);
+	document.getElementById("stage").innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${defs()}${body}</svg>`;
+};
+</script></body></html>
