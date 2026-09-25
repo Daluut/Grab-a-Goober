@@ -2773,6 +2773,62 @@ do -- scoped: rollWheelIndex and grantWheelResult are only used by spinWheel/use
 end
 
 -- Drop the goober you picked up LAST (key Q). It lands in front of you and can't be grabbed again for 2 seconds.
+-- MANUAL DONATION CREDIT (host command "!donor <userId> <robux>"): for a donation that didn't register.
+-- Online: added straight to their total. Offline: written to the Top Donators board now, and saved as a pending credit that
+-- is added to their total the next time they join (applyDonationCredit). (globals: this file is near the 200-local limit)
+function creditDonation(admin, userId, amount)
+	if not userId or not amount or amount <= 0 then
+		notify(admin, "Usage: !donor <userId> <robux>", RED)
+		return
+	end
+	local online = Players:GetPlayerByUserId(userId)
+	local d = online and Data[online]
+	if d then
+		d.Donated += amount
+		notify(online, Config.ThankYouFor(online.DisplayName, math.floor(d.Donated)), GOLD, "reveal")
+		task.spawn(function()
+			pushLeaderboards(online)
+			refreshBoards()
+		end)
+		task.spawn(saveData, online)
+		notify(admin, ("Credited R$%d to %s (online) - total R$%d"):format(amount, online.Name, math.floor(d.Donated)), GREEN)
+		return
+	end
+	task.spawn(function()
+		local ok, err = pcall(function()
+			Store:UpdateAsync("DonationCredit_" .. userId, function(old)
+				return (tonumber(old) or 0) + amount
+			end)
+			local board = DataStoreService:GetOrderedDataStore("GAG_LB_Donated_" .. Config.Leaderboards.Version)
+			local current = tonumber(board:GetAsync(tostring(userId))) or 0
+			board:SetAsync(tostring(userId), math.floor(current + amount))
+		end)
+		if ok then
+			refreshBoards()
+			notify(admin, ("Credited R$%d to user %d (offline) - it shows on the board now and is added to their total when they join"):format(amount, userId), GREEN)
+		else
+			notify(admin, "Couldn't save the credit: " .. tostring(err), RED)
+		end
+	end)
+end
+function applyDonationCredit(player, d)
+	if not Store then
+		return
+	end
+	local taken = 0
+	local ok = pcall(function()
+		Store:UpdateAsync("DonationCredit_" .. player.UserId, function(old)
+			taken = tonumber(old) or 0
+			return taken > 0 and 0 or nil
+		end)
+	end)
+	if ok and taken > 0 and Data[player] == d then
+		d.Donated += taken
+		pushLeaderboards(player)
+		notify(player, Config.ThankYouFor(player.DisplayName, math.floor(d.Donated)), GOLD, "reveal")
+	end
+end
+
 VoluntaryDrops = setmetatable({}, { __mode = "k" }) -- [player] = { [zone] = os.clock() of their last deliberate drop }
 
 local function dropOne(player)
@@ -3150,7 +3206,14 @@ end)
 local function processReceiptInner(receipt)
 	local player = Players:GetPlayerByUserId(receipt.PlayerId)
 	local d = player and Data[player]
+	local waited = 0
+	while player and player.Parent and not d and waited < 15 do -- (their save is still loading: wait for it instead of bouncing the purchase)
+		task.wait(0.5)
+		waited += 0.5
+		d = Data[player]
+	end
 	if not player or not d then
+		print(("[ROBUX] player %s not loaded yet - Roblox will retry this purchase when they are back"):format(tostring(receipt.PlayerId)))
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	local P = Config.Products
@@ -3177,10 +3240,14 @@ local function processReceiptInner(receipt)
 	for _, key in ipairs(Config.DonationTiers) do
 		local prod = P[key]
 		if prod.Id > 0 and receipt.ProductId == prod.Id then
-			d.Donated += prod.Price
-			notify(player, Config.ThankYouFor(player.DisplayName, math.floor(d.Donated)), GOLD, "reveal")
-			announceToChat(("💖 %s just donated R$%d! Thank you! 💖"):format(player.DisplayName, prod.Price))
-			AnnounceRemote:FireAllClients("💖 THANK YOU! 💖", ("%s just donated R$%d!"):format(player.DisplayName, prod.Price), GOLD, "reveal")
+			-- the Robux they REALLY paid (the price on the Creator Dashboard), not the number written in Config
+			local paid = (tonumber(receipt.CurrencySpent) or 0) > 0 and receipt.CurrencySpent or prod.Price
+			d.Donated += paid
+			pcall(function()
+				notify(player, Config.ThankYouFor(player.DisplayName, math.floor(d.Donated)), GOLD, "reveal")
+				announceToChat(("💖 %s just donated R$%d! Thank you! 💖"):format(player.DisplayName, paid))
+				AnnounceRemote:FireAllClients("💖 THANK YOU! 💖", ("%s just donated R$%d!"):format(player.DisplayName, paid), GOLD, "reveal")
+			end)
 			task.spawn(function()
 				pushLeaderboards(player)
 				refreshBoards()
@@ -5888,6 +5955,12 @@ end
 do
 	-- ADMIN CHAT COMMAND: "!wave rainbow" spawns that wave type right now ("!wave" lists them). Handy for testing each wave.
 	local function onChat(player, msg)
+		-- HOST ONLY: "!donor <userId> <robux>" credits a donation that didn't register (works even if they are offline)
+		local uid, amt = msg:match("^!donor%s+(%d+)%s+(%d+)")
+		if uid and isHost(player) then
+			creditDonation(player, tonumber(uid), tonumber(amt))
+			return
+		end
 		local arg = msg:lower():match("^!wave%s*(.*)$")
 		if not arg or not isAdmin(player) then
 			return
@@ -6280,7 +6353,10 @@ do
 	end
 
 	for z = 1, ZONES do
-		buildBoss(z)
+		local okBoss, errBoss = pcall(buildBoss, z)
+		if not okBoss then
+			warn("[Goober] BOSS BUILD ERROR in zone " .. z .. ": " .. tostring(errBoss))
+		end
 	end
 	RunService.Heartbeat:Connect(function(dt)
 		if Config.BossesEnabled then
@@ -6417,6 +6493,7 @@ local function onPlayerAdded(player)
 	if d.Donated > 0 then
 		task.spawn(pushLeaderboards, player) -- a returning donor's spot reappears on the board right away, not after a few seconds
 	end
+	task.spawn(applyDonationCredit, player, d) -- a donation the host credited while they were offline
 end
 
 -- pushLeaderboards is defined further below via `function pushLeaderboards(player) ... end`, deliberately left as a
@@ -6602,10 +6679,22 @@ end
 ----------------------------------------------------------------
 -- START EVERYTHING
 ----------------------------------------------------------------
-buildWorld()
-for z = 1, ZONES do
-	for _ = 1, Config.PickupsForZone(z) do
-		spawnPickup(z)
+-- (every step is protected: if something in the world fails to build, players must STILL load and Robux purchases must
+-- STILL be granted - an error here used to stop everything after it, so purchases were never processed)
+do
+	local okWorld, errWorld = pcall(buildWorld)
+	if not okWorld then
+		warn("[Goober] WORLD BUILD ERROR (the game keeps running, purchases still work): " .. tostring(errWorld))
+	end
+	local okPick, errPick = pcall(function()
+		for z = 1, ZONES do
+			for _ = 1, Config.PickupsForZone(z) do
+				spawnPickup(z)
+			end
+		end
+	end)
+	if not okPick then
+		warn("[Goober] PICKUP SPAWN ERROR: " .. tostring(errPick))
 	end
 end
 -- (each pickup expires on its own timer, so they naturally rotate out at different times)
