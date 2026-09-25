@@ -2802,9 +2802,8 @@ function creditDonation(admin, userId, amount)
 	end
 	task.spawn(function()
 		local ok, err = pcall(function()
-			Store:UpdateAsync("DonationCredit_" .. userId, function(old)
-				return (tonumber(old) or 0) + amount
-			end)
+			-- (the Top Donators board IS the record of an offline credit: their saved total is raised to match it when they
+			-- join - so a failed or repeated attempt can never double-count)
 			local board = DataStoreService:GetOrderedDataStore("GAG_LB_Donated_" .. Config.Leaderboards.Version)
 			local existing = board:GetAsync(tostring(userId)) -- (returns NOTHING for someone not on the board yet, so store it first)
 			local current = tonumber(existing) or 0
@@ -2822,16 +2821,17 @@ function applyDonationCredit(player, d)
 	if not Store then
 		return
 	end
-	local taken = 0
+	local onBoard = 0
 	local ok = pcall(function()
-		Store:UpdateAsync("DonationCredit_" .. player.UserId, function(old)
-			taken = tonumber(old) or 0
-			return taken > 0 and 0 or nil
-		end)
+		local board = DataStoreService:GetOrderedDataStore("GAG_LB_Donated_" .. Config.Leaderboards.Version)
+		local v = board:GetAsync(tostring(player.UserId)) -- (returns nothing when they aren't on the board)
+		onBoard = tonumber(v) or 0
+		Store:RemoveAsync("DonationCredit_" .. player.UserId) -- (old-style pending credit from an earlier build: no longer used)
 	end)
-	if ok and taken > 0 and Data[player] == d then
-		d.Donated += taken
-		pushLeaderboards(player)
+	if ok and onBoard > d.Donated and Data[player] == d then
+		-- the owner credited a donation while they were offline: bring their saved total up to the board
+		d.Donated = onBoard
+		task.spawn(saveData, player)
 		notify(player, Config.ThankYouFor(player.DisplayName, math.floor(d.Donated)), GOLD, "reveal")
 	end
 end

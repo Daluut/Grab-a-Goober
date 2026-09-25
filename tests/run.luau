@@ -135,7 +135,7 @@ local n1 = #E.__shared.LOG
 -- offline credit for user 999 (never joined)
 Chat:Fire("!donor 999 400")
 E.__STEP(3)
-print("---- !donor offline -> board 999 =", board.data["999"], " pending credit =", E.__shared.STORES[Config.DataStoreName] and E.__shared.STORES[Config.DataStoreName].data["DonationCredit_999"])
+print("---- !donor offline -> board 999 =", board.data["999"])
 for i = n1 + 1, #E.__shared.LOG do
 	local l = E.__shared.LOG[i]
 	if l:find("Notify") then
@@ -151,7 +151,7 @@ p2.Parent = Players
 table.insert(E.__players, p2)
 Players.PlayerAdded:Fire(p2)
 E.__STEP(4)
-print("---- after LateDonor joins: board 999 =", board.data["999"], " pending credit now =", E.__shared.STORES[Config.DataStoreName].data["DonationCredit_999"])
+print("---- after LateDonor joins: board 999 =", board.data["999"])
 print("---- errors total:", #E.__shared.ERRORS)
 for _, e in ipairs(E.__shared.ERRORS) do
 	print("ERR", e:sub(1, 600))
@@ -183,6 +183,25 @@ E.__STEP(4)
 print("---- BigDonor joined: board 555 =", board.data["555"])
 print("---- BigDonor donates 50 more:", receipt(555, Config.Products.Donate50.Id, 50))
 print("---- board 555 now =", board.data["555"], "(expect 450)")
+print("---- errors total:", #E.__shared.ERRORS)
+for _, e in ipairs(E.__shared.ERRORS) do
+	print("ERR", e:sub(1, 600))
+end
+
+-- a half-finished credit from the buggy build left a pending "DonationCredit_" of 400: it must NOT be added again
+E.__shared.STORES[Config.DataStoreName].data["DonationCredit_777"] = 400
+rem.OnServerEvent:Fire(plr, "Admin", "CreditDonation", 777, 400)
+E.__STEP(3)
+local p4 = E.__inst("Player")
+p4.Name = "RetryDonor"
+p4.DisplayName = "RetryDonor"
+p4.UserId = 777
+p4.Parent = Players
+table.insert(E.__players, p4)
+Players.PlayerAdded:Fire(p4)
+E.__STEP(4)
+print("---- RetryDonor (old pending 400 + new credit 400): board 777 =", board.data["777"], "(expect 400)  old pending cleared:", E.__shared.STORES[Config.DataStoreName].data["DonationCredit_777"] == nil)
+print("---- RetryDonor donates 20 more:", receipt(777, Config.Products.Donate20.Id, 20), " board 777 =", board.data["777"], "(expect 420)")
 print("---- errors total:", #E.__shared.ERRORS)
 for _, e in ipairs(E.__shared.ERRORS) do
 	print("ERR", e:sub(1, 600))
