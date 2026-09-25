@@ -3323,6 +3323,19 @@ do
 	abtn(g, "Pause / resume floods", Color3.fromRGB(80, 170, 255), cmd("PauseWaves"))
 	abtn(g, "Clear all floods", Color3.fromRGB(80, 170, 255), cmd("ClearWaves"))
 
+	g = section("DONATIONS - add a donation that didn't register (owner only)")
+	local donorBox = box(g, "player's User ID", "")
+	local robuxBox = box(g, "Robux amount", "")
+	abtn(g, "ADD TO DONATORS", Color3.fromRGB(255, 105, 160), function()
+		local uid, amt = tonumber(donorBox.Text), tonumber(robuxBox.Text)
+		if uid and amt and amt > 0 then
+			Action:FireServer("Admin", "CreditDonation", uid, amt)
+			donorBox.Text, robuxBox.Text = "", ""
+		else
+			toast("Type the player's User ID and the Robux amount", GOLD)
+		end
+	end)
+
 	g = section("TELEPORT")
 	local zoneBox = box(g, "zone 1-" .. Config.ZoneCount, "1")
 	abtn(g, "GO TO ZONE", Color3.fromRGB(255, 170, 60), function()

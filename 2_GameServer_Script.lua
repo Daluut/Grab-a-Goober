@@ -2603,6 +2603,12 @@ local function adminCommand(player, cmd, a, b)
 		grantItem(player, { Id = a, Mut = mut }, "Admin", true)
 	elseif cmd == "Pet" and typeof(a) == "string" and Config.PetById[a] then
 		givePet(player, Config.PetById[a])
+	elseif cmd == "CreditDonation" and typeof(a) == "number" and typeof(b) == "number" then
+		if isHost(player) then -- real-money board: only the owner, never temporary admins
+			creditDonation(player, math.floor(a), math.floor(b))
+		else
+			notify(player, "Only the game owner can do that", RED)
+		end
 	elseif cmd == "Wave" then
 		local wt = triggerWave(typeof(a) == "string" and a or nil)
 		AnnounceRemote:FireAllClients(wt.Title, wt.Sub, wt.Color, "horn")

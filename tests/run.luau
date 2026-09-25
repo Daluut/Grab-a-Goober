@@ -167,3 +167,23 @@ for i = n2 + 1, #E.__shared.LOG do
 	end
 end
 print("---- errors total:", #E.__shared.ERRORS)
+-- admin panel: credit 400 to an OFFLINE user, they join later and donate 50 more -> 450
+local rem = E.__service("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("Action")
+rem.OnServerEvent:Fire(plr, "Admin", "CreditDonation", 555, 400)
+E.__STEP(3)
+print("---- panel credit offline: board 555 =", board.data["555"])
+local p3 = E.__inst("Player")
+p3.Name = "BigDonor"
+p3.DisplayName = "BigDonor"
+p3.UserId = 555
+p3.Parent = Players
+table.insert(E.__players, p3)
+Players.PlayerAdded:Fire(p3)
+E.__STEP(4)
+print("---- BigDonor joined: board 555 =", board.data["555"])
+print("---- BigDonor donates 50 more:", receipt(555, Config.Products.Donate50.Id, 50))
+print("---- board 555 now =", board.data["555"], "(expect 450)")
+print("---- errors total:", #E.__shared.ERRORS)
+for _, e in ipairs(E.__shared.ERRORS) do
+	print("ERR", e:sub(1, 600))
+end
