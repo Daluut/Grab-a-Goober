@@ -219,6 +219,11 @@ local function drawIcon(parent, kind)
 		sh(0.5, 0.46, 0.46, 0.5, 0, 0.3)
 		sh(0.5, 0.68, 0.32, 0.32, 45, 0.15)
 		sh(0.5, 0.46, 0.18, 0.18, 45, 0.15, Color3.fromRGB(255, 200, 60), 3)
+	elseif kind == "trails" then -- three speed streaks and a sparkle
+		sh(0.44, 0.3, 0.62, 0.12, -12, 0.5)
+		sh(0.4, 0.5, 0.74, 0.14, -12, 0.5)
+		sh(0.44, 0.7, 0.56, 0.12, -12, 0.5)
+		sh(0.8, 0.46, 0.2, 0.2, 45, 0.15, Color3.fromRGB(255, 225, 90), 3)
 	elseif kind == "rebirth" then -- a renewal ring with a little spark, like a refresh symbol
 		hollow(0.5, 0.5, 0.6, 0.6, 0.5)
 		sh(0.76, 0.28, 0.16, 0.05, 40, 0.3)
@@ -1111,11 +1116,23 @@ local boostRow = make("Frame", {
 make("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, VerticalAlignment = Enum.VerticalAlignment.Bottom, HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.Name }, boostRow)
 local boostChips, boostTip = {}, nil
 do
-	boostTip = make("Frame", { AnchorPoint = Vector2.new(1, 1), Size = UDim2.fromOffset(230, 54), BackgroundColor3 = Color3.fromRGB(30, 26, 60), Visible = false, ZIndex = 20 }, gui)
+	boostTip = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Size = UDim2.fromOffset(250, 62), BackgroundColor3 = Color3.fromRGB(30, 26, 60), Visible = false, ZIndex = 20 }, gui)
 	corner(boostTip, 12)
 	stroke(boostTip, 2.5, WHITE)
 	label({ Position = UDim2.fromOffset(10, 4), Size = UDim2.new(1, -20, 0, 22), TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, Text = "" }, boostTip).Name = "Title"
-	label({ Position = UDim2.fromOffset(10, 26), Size = UDim2.new(1, -20, 0, 24), TextScaled = true, TextWrapped = true, TextColor3 = Color3.fromRGB(210, 210, 235), TextXAlignment = Enum.TextXAlignment.Left, Text = "" }, boostTip).Name = "Desc"
+	label({ Position = UDim2.fromOffset(10, 26), Size = UDim2.new(1, -20, 0, 32), TextScaled = true, TextWrapped = true, TextColor3 = Color3.fromRGB(210, 210, 235), TextXAlignment = Enum.TextXAlignment.Left, Text = "" }, boostTip).Name = "Desc"
+end
+-- Puts the tooltip to the LEFT of a chip, and always fully on screen. (AbsolutePosition is in real screen pixels but the
+-- tooltip lives inside the scaled "gui" frame, so it has to be converted - that mismatch is what pushed it off-screen.)
+function placeTip(chip)
+	local sc = rootScale.Scale
+	local rel = (chip.AbsolutePosition - gui.AbsolutePosition) / sc
+	local chipH = chip.AbsoluteSize.Y / sc
+	local tipW, tipH = boostTip.Size.X.Offset, boostTip.Size.Y.Offset
+	local screenW, screenH = gui.AbsoluteSize.X / sc, gui.AbsoluteSize.Y / sc
+	local x = math.clamp(rel.X - 8, tipW + 6, screenW - 6)
+	local y = math.clamp(rel.Y + chipH / 2, tipH / 2 + 6, screenH - tipH / 2 - 6)
+	boostTip.Position = UDim2.fromOffset(x, y)
 end
 for _, info in ipairs({
 	{ "Speed", Color3.fromRGB(70, 210, 255) }, { "Jump", Color3.fromRGB(120, 255, 130) }, { "Shield", Color3.fromRGB(255, 220, 70) },
@@ -1136,7 +1153,7 @@ for _, info in ipairs({
 		if not shownItem then
 			return
 		end
-		boostTip.Position = UDim2.new(0, chip.AbsolutePosition.X - 6, 0, chip.AbsolutePosition.Y - 6)
+		placeTip(chip)
 		boostTip.Title.Text = shownItem.Label
 		boostTip.Title.TextColor3 = col
 		local remaining = math.max(0, math.ceil((player:GetAttribute("Boost" .. kind) or 0) - workspace:GetServerTimeNow()))
@@ -1173,7 +1190,7 @@ do
 		stroke(chip, 2.5, col)
 		label({ Size = UDim2.fromScale(1, 1), TextSize = 15, Text = (PERK_ICON[name] or "✨") .. " " .. name:upper() .. " PERK" }, chip)
 		local function showTip()
-			boostTip.Position = UDim2.new(0, chip.AbsolutePosition.X - 6, 0, chip.AbsolutePosition.Y - 6)
+			placeTip(chip)
 			boostTip.Title.Text = name .. " Goober placed"
 			boostTip.Title.TextColor3 = col
 			boostTip.Desc.Text = def.PerkText or ""
@@ -1215,7 +1232,7 @@ do -- scoped: lockChipStroke/lockShowTip are only needed to build this chip once
 	lockChipStroke = stroke(lockChip, 2.5, Color3.fromRGB(120, 130, 255))
 	lockChipLabel = label({ Size = UDim2.fromScale(1, 1), TextSize = 15, Text = "" }, lockChip)
 	local function lockShowTip()
-		boostTip.Position = UDim2.new(0, lockChip.AbsolutePosition.X - 6, 0, lockChip.AbsolutePosition.Y - 6)
+		placeTip(lockChip)
 		boostTip.Title.Text = "Base Lock"
 		boostTip.Title.TextColor3 = Color3.fromRGB(120, 130, 255)
 		local remaining = math.max(0, math.ceil((player:GetAttribute("LockedUntil") or 0) - workspace:GetServerTimeNow()))
@@ -1766,7 +1783,7 @@ do
 		for id, r in pairs(upgRows) do
 			local lvl = player:GetAttribute(UPG[id].attr) or 0
 			local max = Config.Upgrades[id].Max
-			local luckCap = id == "Luck" and (player:GetAttribute("LuckMax") or max) or max -- Luck levels unlock with Rebirths
+			local luckCap = (id == "Luck" and (player:GetAttribute("LuckMax") or max)) or (id == "Slots" and (player:GetAttribute("SlotsMax") or max)) or max -- Luck + Slots levels unlock with Rebirths
 			r.Title.Text = ("%s   Lv %d/%d"):format(Config.Upgrades[id].Label, lvl, max)
 			r.Fill.Size = UDim2.fromScale(math.clamp(lvl / max, 0, 1), 1)
 			local floorsLvl = player:GetAttribute("FloorsLvl") or 0
@@ -1774,7 +1791,7 @@ do
 				r.Desc.Text = "MAXED OUT!"
 				setBtn(r.Btn, "MAX", GREY)
 			elseif lvl >= luckCap then
-				r.Desc.Text = ("%.1f%% mutate chance. REBIRTH to unlock more Luck levels!"):format(Config.LuckMutateChance(lvl) * 100)
+				r.Desc.Text = (id == "Luck") and ("%.1f%% mutate chance. REBIRTH to unlock more Luck levels!"):format(Config.LuckMutateChance(lvl) * 100) or "REBIRTH to unlock more base slots!"
 				setBtn(r.Btn, "REBIRTH", GREY)
 			elseif id == "Slots" and 4 + lvl >= Config.SlotsPerFloor * (1 + floorsLvl) then
 				r.Desc.Text = "Floors full - build a Base Floor first!"
@@ -3446,6 +3463,62 @@ do
 end
 
 ----------------------------------------------------------------
+-- TRAILS: a glowing trail behind you + a permanent speed boost while it's equipped. Each costs ~100x the last.
+----------------------------------------------------------------
+do
+	local TCOL = Color3.fromRGB(90, 200, 255)
+	local _, tBody = modal("trails", 640, 620, "✨ TRAILS", TCOL)
+	label({ Size = UDim2.new(1, 0, 0, 22), TextScaled = true, TextColor3 = Color3.fromRGB(220, 235, 255), Text = "Trails make you FASTER while equipped - stack with Speed, pets & rebirths to outrun bosses!" }, tBody)
+	local holder = make("Frame", { Position = UDim2.fromOffset(0, 28), Size = UDim2.new(1, 0, 1, -28), BackgroundTransparency = 1 }, tBody)
+	local list = scroller(holder, 8)
+	local rows = {}
+	for i, def in ipairs(Config.Trails) do
+		local mid = def.Colors[math.ceil(#def.Colors / 2)]
+		local r = itemRow(list, mid, "✨", 92, i)
+		r.Title.Text = ("%s  +%d%% speed"):format(def.Label, math.floor(def.Speed * 100 + 0.5))
+		-- a preview of the trail's colours
+		local stripe = make("Frame", { Position = UDim2.fromOffset(86, 70), Size = UDim2.new(1, -214, 0, 12), BackgroundColor3 = WHITE }, r.Row)
+		corner(stripe, 6)
+		stroke(stripe, 1.5, WHITE)
+		local keys = {}
+		for k, c in ipairs(def.Colors) do
+			table.insert(keys, ColorSequenceKeypoint.new(#def.Colors == 1 and 0 or (k - 1) / (#def.Colors - 1), c))
+		end
+		if #keys == 1 then
+			table.insert(keys, ColorSequenceKeypoint.new(1, def.Colors[1]))
+		end
+		make("UIGradient", { Color = ColorSequence.new(keys) }, stripe)
+		r.Btn.Activated:Connect(function()
+			local owned = (","  .. (player:GetAttribute("TrailsOwned") or "") .. ","):find("," .. def.Id .. ",", 1, true)
+			Action:FireServer(owned and "EquipTrail" or "BuyTrail", def.Id)
+		end)
+		rows[def.Id] = r
+	end
+	local function updateTrails()
+		local owned = "," .. (player:GetAttribute("TrailsOwned") or "") .. ","
+		local on = player:GetAttribute("TrailOn") or ""
+		local cash = player:GetAttribute("Cash") or 0
+		for _, def in ipairs(Config.Trails) do
+			local r = rows[def.Id]
+			if on == def.Id then
+				r.Desc.Text = "EQUIPPED - tap to take it off"
+				setBtn(r.Btn, "ON", Color3.fromRGB(90, 200, 255))
+			elseif owned:find("," .. def.Id .. ",", 1, true) then
+				r.Desc.Text = "Owned"
+				setBtn(r.Btn, "EQUIP", GREEN)
+			else
+				r.Desc.Text = "Costs $" .. F(def.Price)
+				setBtn(r.Btn, "$" .. F(def.Price), cash >= def.Price and GREEN or GREY)
+			end
+		end
+	end
+	for _, attr in ipairs({ "TrailsOwned", "TrailOn", "Cash" }) do
+		player:GetAttributeChangedSignal(attr):Connect(updateTrails)
+	end
+	updateTrails()
+end
+
+----------------------------------------------------------------
 -- SIDE BUTTONS (2-column grid: fits phones) + THE PULSING SALE STAR
 ----------------------------------------------------------------
 local left = make("Frame", { Position = UDim2.fromOffset(12, 236), Size = UDim2.fromOffset(292, 336), BackgroundTransparency = 1 }, gui)
@@ -3521,6 +3594,9 @@ local adminBtn = sideButton(11, "ADMIN [U]", Color3.fromRGB(255, 100, 100), "adm
 end)
 sideButton(12, "DONATE", Color3.fromRGB(255, 105, 160), "donate", function()
 	toggleMenu("donate")
+end)
+sideButton(14, "TRAILS", Color3.fromRGB(90, 200, 255), "trails", function()
+	toggleMenu("trails")
 end)
 adminBtn.Visible = false -- only the developer sees this
 
@@ -5743,3 +5819,29 @@ task.spawn(function()
 		task.wait(0.25)
 	end
 end)
+
+----------------------------------------------------------------
+-- MOBILE: less text in the way. Phones have a small screen, so world labels (Goober names/incomes, pads, signs, egg tags)
+-- are drawn smaller and only when you are closer, and the extra HUD text lines are removed (the Mutation Hour icon
+-- and the spin wheel's counter already show the same info).
+----------------------------------------------------------------
+if isTouch then
+	eventL.Parent = nil
+	spinBanner.Parent = nil
+	local function tune(bb)
+		if not bb:IsA("BillboardGui") or bb:GetAttribute("MobileTuned") then
+			return
+		end
+		bb:SetAttribute("MobileTuned", true)
+		bb.Size = UDim2.new(bb.Size.X.Scale * 0.75, bb.Size.X.Offset * 0.75, bb.Size.Y.Scale * 0.75, bb.Size.Y.Offset * 0.75)
+		if bb.MaxDistance > 0 and bb.MaxDistance < math.huge then
+			bb.MaxDistance = math.max(22, bb.MaxDistance * 0.55)
+		else
+			bb.MaxDistance = 120
+		end
+	end
+	for _, d in ipairs(workspace:GetDescendants()) do
+		tune(d)
+	end
+	workspace.DescendantAdded:Connect(tune)
+end

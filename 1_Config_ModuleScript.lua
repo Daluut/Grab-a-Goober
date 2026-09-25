@@ -171,6 +171,41 @@ Config.WaveTypes = {
 
 Config.LuckyBoxCost = 2000
 Config.LockCost = 25000 -- (was 1000)
+
+----------------------------------------------------------------
+-- NPC OUTFITS: dress the shop NPCs in REAL Roblox items. For each NPC, EITHER:
+--   UserId = <any Roblox user id>      -> the NPC wears that player's whole avatar (clothes, accessories, skin, face)
+--                                         (the id is the number in a profile link: roblox.com/users/<id>/profile)
+--   OR pick items yourself (the number in a catalog link: roblox.com/catalog/<id>/...):
+--      Shirt = <id>, Pants = <id>, Accessories = { <hat id>, <hair id>, ... }, Face = <face id>
+-- Leave everything at 0 / empty to keep the NPC's built-in cartoon look. A wrong or unavailable id just keeps that look.
+----------------------------------------------------------------
+Config.NPCOutfits = {
+	["Gus"] = { UserId = 0, Shirt = 0, Pants = 0, Accessories = {}, Face = 0 },
+	["Cuddles Cleo"] = { UserId = 0, Shirt = 0, Pants = 0, Accessories = {}, Face = 0 },
+}
+
+----------------------------------------------------------------
+-- TRAILS: a glowing trail behind you + a permanent speed boost while it's equipped. Each one costs ~100x the last.
+-- Colors = the trail's colour stops (more than one = a gradient). Speed = +run speed while equipped (0.10 = +10%).
+----------------------------------------------------------------
+Config.Trails = {
+	{ Id = "White", Label = "White Trail", Price = 25000, Speed = 0.03, Colors = { Color3.fromRGB(255, 255, 255) }, Glow = 0.4 },
+	{ Id = "Blue", Label = "Blue Trail", Price = 2.5e6, Speed = 0.06, Colors = { Color3.fromRGB(80, 170, 255), Color3.fromRGB(160, 220, 255) }, Glow = 0.6 },
+	{ Id = "Pink", Label = "Bubblegum Trail", Price = 2.5e8, Speed = 0.10, Colors = { Color3.fromRGB(255, 120, 200), Color3.fromRGB(255, 200, 235) }, Glow = 0.6 },
+	{ Id = "Toxic", Label = "Toxic Trail", Price = 2.5e10, Speed = 0.14, Colors = { Color3.fromRGB(140, 255, 60), Color3.fromRGB(40, 160, 40) }, Glow = 0.8 },
+	{ Id = "Golden", Label = "Golden Trail", Price = 2.5e12, Speed = 0.19, Colors = { Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 190, 40), Color3.fromRGB(255, 240, 150) }, Glow = 0.9 },
+	{ Id = "Fire", Label = "Fire Trail", Price = 2.5e14, Speed = 0.25, Colors = { Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 130, 30), Color3.fromRGB(220, 30, 30) }, Glow = 1 },
+	{ Id = "Rainbow", Label = "Rainbow Trail", Price = 2.5e16, Speed = 0.32, Colors = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 160, 40), Color3.fromRGB(255, 240, 60), Color3.fromRGB(70, 230, 90), Color3.fromRGB(60, 160, 255), Color3.fromRGB(170, 90, 255) }, Glow = 1 },
+	{ Id = "Galaxy", Label = "Galaxy Trail", Price = 2.5e18, Speed = 0.40, Colors = { Color3.fromRGB(40, 20, 90), Color3.fromRGB(140, 80, 255), Color3.fromRGB(255, 150, 240), Color3.fromRGB(120, 220, 255) }, Glow = 1 },
+	{ Id = "Glitched", Label = "Glitched Trail", Price = 2.5e20, Speed = 0.50, Colors = { Color3.fromRGB(255, 40, 255), Color3.fromRGB(20, 20, 30), Color3.fromRGB(60, 255, 255), Color3.fromRGB(20, 20, 30), Color3.fromRGB(255, 40, 255) }, Glow = 1 },
+	{ Id = "Void", Label = "Void Trail", Price = 2.5e22, Speed = 0.62, Colors = { Color3.fromRGB(10, 0, 20), Color3.fromRGB(120, 0, 200), Color3.fromRGB(10, 0, 20) }, Glow = 0.7 },
+}
+Config.TrailById = {}
+for _, t in ipairs(Config.Trails) do
+	Config.TrailById[t.Id] = t
+end
+Config.SpeedHardCap = 450 -- absolute top run speed, whatever you stack (keeps physics sane)
 Config.LockSeconds = 30 -- 30 seconds (was 30 minutes)
 Config.LockGrowth = 1.5 -- every Base Lock you buy makes your next one 50% pricier
 function Config.LockPrice(buys) -- buys = how many Base Locks this player has bought before
@@ -327,6 +362,8 @@ Config.BossesEnabled = true
 Config.BossTuning = {
 	SpeedBase = 12, SpeedPerZone = 6, -- studs per second: zone 1 = 12 (slower than you), zone 14 = 90 (needs a maxed-out runner)
 	Zone2PlusBoost = 3, -- zones 2 onward are a little faster than that on top (zone 1 stays exactly as it was - it's the intro)
+	Zone3PlusScale = 0.04, Zone3PlusFlat = 4, -- zones 3+: another +4% per zone past 2, +4 flat (zone 14 ~ 142): you need Speed + pets + a trail
+	CatchUpDistance = 70, CatchUpBehind = 45, CatchUpCooldown = 4, -- a hunting boss left far behind jumps back to 45 studs behind you (no drop-and-regrab exploit)
 	SizeBase = 11, SizePerZone = 1, -- body size in studs
 	Cooldown = 3.5, -- (kept for old settings)
 }
@@ -354,7 +391,7 @@ function Config.BossFor(z)
 		Name = "Boss " .. z,
 		Style = "dragon",
 		Color = Config.Zones[z].Accent,
-		Speed = t.SpeedBase + k * t.SpeedPerZone + (z >= 2 and t.Zone2PlusBoost or 0),
+		Speed = (t.SpeedBase + k * t.SpeedPerZone + (z >= 2 and t.Zone2PlusBoost or 0)) * (z >= 3 and (1 + (z - 2) * t.Zone3PlusScale) or 1) + (z >= 3 and t.Zone3PlusFlat or 0),
 		Size = t.SizeBase + k * t.SizePerZone,
 		Cooldown = t.Cooldown,
 	}
@@ -596,9 +633,9 @@ end
 Config.Upgrades = {
 	Speed = { Label = "Speed", Desc = "Run faster", Base = 150, Growth = 1.65 }, -- Max is set below from Config.MaxWalkSpeed
 	Carry = { Label = "Capacity", Desc = "Carry +1 Goober at once", Base = 400, Growth = 3.5 }, -- limit comes from Rebirths
-	Slots = { Label = "Base Slots", Desc = "+1 pedestal in your base", Max = 46, Base = 800, Growth = 1.4 },
-	Floors = { Label = "Base Floors", Desc = "Build a new floor (+10 slots)", Max = 4, Base = 25000, Growth = 6.5 },
-	Luck = { Label = "Luck", Desc = "Chance a Goober you grab turns MUTATED (+ better Lucky Boxes)", Max = 30, Base = 1500, Growth = 2.1 }, -- limit comes from Rebirths (Config.LuckMaxLevel)
+	Slots = { Label = "Base Slots", Desc = "+1 pedestal in your base", Max = 46, Base = 2500, Growth = 1.65 }, -- (was 800 x1.4) limit also comes from Rebirths (Config.SlotsMaxLevel)
+	Floors = { Label = "Base Floors", Desc = "Build a new floor (+10 slots)", Max = 4, Base = 250000, Growth = 12 }, -- (was 25K x6.5)
+	Luck = { Label = "Luck", Desc = "Chance a Goober you grab turns MUTATED (+ better Lucky Boxes)", Max = 30, Base = 10000, Growth = 2.25 }, -- limit comes from Rebirths (Config.LuckMaxLevel)
 }
 -- Speed and Capacity are bought at the physical stands in the plaza, so they are not in the shop window.
 Config.UpgradeOrder = { "Slots", "Floors", "Luck" }
@@ -653,6 +690,10 @@ end
 
 -- LUCK: every level gives a chance that a normal Goober you grab turns into a random mutation.
 -- Level 1 = 1%, rising slowly (the curve is steep at the end) up to 50% at level 30. More levels unlock with Rebirths.
+-- BASE SLOTS need Rebirths too: 6 slot upgrades to start (10 slots = one full floor), +8 per Rebirth (all 50 after 5 Rebirths)
+function Config.SlotsMaxLevel(rebirths)
+	return math.min(Config.Upgrades.Slots.Max, 6 + (rebirths or 0) * 8)
+end
 function Config.LuckMaxLevel(rebirths)
 	return math.min(Config.Upgrades.Luck.Max, 5 + (rebirths or 0) * 5) -- 5 levels to start, +5 per Rebirth (level 30 needs 5 Rebirths)
 end
@@ -936,8 +977,11 @@ function Config.Format(n)
 	if n < 1000 then
 		return tostring(n)
 	end
-	if n >= 1e36 then
-		return string.format("%.2e", n)
+	if n >= 1e36 then -- past the named suffixes: short scientific form, e.g. "4.2e51"
+		if n == math.huge then
+			return "INFINITE"
+		end
+		return (string.format("%.2e", n):gsub("%.?0+e", "e"):gsub("e%+", "e"))
 	end
 	local idx = math.min(math.floor(math.log10(n) / 3), #suffixes - 1)
 	local v = n / 10 ^ (idx * 3)

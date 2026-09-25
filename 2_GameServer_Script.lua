@@ -555,6 +555,15 @@ local function updateStats(player)
 	player:SetAttribute("PetSpeed", petSpeed)
 	player:SetAttribute("CarryMax", Config.CarryMaxLevel(d.Rebirths))
 	player:SetAttribute("LuckMax", Config.LuckMaxLevel(d.Rebirths))
+	player:SetAttribute("SlotsMax", Config.SlotsMaxLevel(d.Rebirths))
+	do
+		local owned = {}
+		for id in pairs(d.Trails) do
+			table.insert(owned, id)
+		end
+		player:SetAttribute("TrailsOwned", table.concat(owned, ","))
+		player:SetAttribute("TrailOn", d.TrailOn)
+	end
 	for _, it in ipairs(Config.ShopItems) do
 		player:SetAttribute("Price_" .. it.Id, shopPrice(d, it))
 	end
@@ -589,8 +598,11 @@ local function applySpeed(player)
 	local b = Boosts[player]
 	local vip = OwnsPass[player] and OwnsPass[player].VIP
 	local _, petSpeed = petBonus(d)
-	local speed = (Config.WalkSpeed(d.SpeedLvl, vip) + d.Rebirths * Config.MaxWalkSpeedPerRebirth) * (1 + petSpeed) -- rebirths raise the ceiling further, on top of levels
-	speed *= perksOf(d).Speed -- Chocolate mutation perk
+	-- base speed (upgrades + rebirths) is capped - rebirths raise that cap - then pets, the equipped trail, the Chocolate perk
+	-- and the Speed potion all multiply ON TOP, so every one of them really makes you faster
+	local base = math.min(Config.WalkSpeed(d.SpeedLvl, vip) + d.Rebirths * Config.MaxWalkSpeedPerRebirth, Config.MaxWalkSpeed + d.Rebirths * Config.MaxWalkSpeedPerRebirth)
+	local trail = Config.TrailById[d.TrailOn or ""]
+	local speed = base * (1 + petSpeed) * (1 + (trail and trail.Speed or 0)) * perksOf(d).Speed
 	local jump = Config.JumpPower
 	if b and b.Speed > now then
 		speed *= 1.5
@@ -598,7 +610,7 @@ local function applySpeed(player)
 	if b and b.Jump > now then
 		jump = 85
 	end
-	speed = math.min(speed, Config.MaxWalkSpeed) -- nobody can outrun the max (it is set so only a maxed runner escapes the last boss)
+	speed = math.min(speed, Config.SpeedHardCap)
 	if (Stunned[player] or 0) > os.clock() then
 		speed = 0
 		jump = 0
@@ -1591,7 +1603,7 @@ local function buyUpgrade(player, name, count)
 	elseif name == "Luck" then
 		max = Config.LuckMaxLevel(d.Rebirths) -- more luck needs Rebirths too
 	elseif name == "Slots" then
-		max = math.min(max, Config.SlotsPerFloor * (1 + d.FloorLvl) - 4)
+		max = math.min(max, Config.SlotsPerFloor * (1 + d.FloorLvl) - 4, Config.SlotsMaxLevel(d.Rebirths))
 	end
 	local room = max - lvl
 	if room <= 0 then
@@ -1599,6 +1611,8 @@ local function buyUpgrade(player, name, count)
 			notify(player, "Rebirth to unlock more capacity!", GOLD, "error")
 		elseif name == "Luck" and lvl < def.Max then
 			notify(player, "Rebirth to unlock more Luck!", GOLD, "error")
+		elseif name == "Slots" and lvl >= Config.SlotsMaxLevel(d.Rebirths) and lvl < def.Max then
+			notify(player, "Rebirth to unlock more base slots!", GOLD, "error")
 		elseif name == "Slots" then
 			notify(player, "Build a new Base Floor first!", RED)
 		else
@@ -1694,6 +1708,93 @@ local function startLock(player, seconds)
 			end
 		end
 	end)
+end
+
+-- TRAILS: buy (cash, each ~100x the last), equip / unequip, and the actual glowing Trail behind the character
+do
+	function applyTrail(player)
+		local d = Data[player]
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not d or not hrp then
+			return
+		end
+		local old = hrp:FindFirstChild("GooberTrail")
+		if old then
+			old:Destroy()
+		end
+		local def = Config.TrailById[d.TrailOn or ""]
+		if not def then
+			return
+		end
+		local folder = Instance.new("Folder")
+		folder.Name = "GooberTrail"
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 1.1, 0.4)
+		a0.Parent = hrp
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, -1.6, 0.4)
+		a1.Parent = hrp
+		local keys = {}
+		for i, c in ipairs(def.Colors) do
+			table.insert(keys, ColorSequenceKeypoint.new(#def.Colors == 1 and 0 or (i - 1) / (#def.Colors - 1), c))
+		end
+		if #keys == 1 then
+			table.insert(keys, ColorSequenceKeypoint.new(1, def.Colors[1]))
+		end
+		local tr = Instance.new("Trail")
+		tr.Attachment0 = a0
+		tr.Attachment1 = a1
+		tr.Color = ColorSequence.new(keys)
+		tr.Lifetime = 0.7
+		tr.MinLength = 0.05
+		tr.FaceCamera = true
+		tr.LightEmission = def.Glow or 0.6
+		tr.Transparency = NumberSequence.new(0.1, 1)
+		tr.WidthScale = NumberSequence.new(1, 0.2)
+		tr.Parent = folder
+		-- the attachments live in the folder's lifetime: removing the folder removes them too
+		a0.Name, a1.Name = "GooberTrailA0", "GooberTrailA1"
+		folder.Destroying:Connect(function()
+			a0:Destroy()
+			a1:Destroy()
+		end)
+		folder.Parent = hrp
+	end
+
+	function buyTrail(player, id)
+		local d, def = Data[player], typeof(id) == "string" and Config.TrailById[id]
+		if not d or not def then
+			return
+		end
+		if d.Trails[id] then
+			return equipTrail(player, id)
+		end
+		if d.Cash < def.Price then
+			notify(player, "Need $" .. Config.Format(def.Price), RED)
+			return
+		end
+		d.Cash -= def.Price
+		d.Trails[id] = true
+		notify(player, ("%s unlocked! +%d%% speed"):format(def.Label, math.floor(def.Speed * 100 + 0.5)), GOLD, "reveal")
+		equipTrail(player, id)
+		task.spawn(saveData, player)
+	end
+
+	function equipTrail(player, id)
+		local d = Data[player]
+		if not d then
+			return
+		end
+		if id == "" or id == d.TrailOn then
+			d.TrailOn = "" -- tapping the equipped one takes it off
+		elseif d.Trails[id] then
+			d.TrailOn = id
+		else
+			return
+		end
+		applyTrail(player)
+		refresh(player)
+	end
 end
 
 local function lockBase(player)
@@ -2290,6 +2391,8 @@ local function defaultData()
 		WheelClaimed = false,
 		GroupClaimed = false,
 		ShopBuys = {},
+		Trails = {}, -- [trailId] = true
+		TrailOn = "",
 		DailyLast = 0,
 		DailyStreak = 0,
 		DailyWeeks = 0, -- how many FULL 7-day streaks completed - each one makes the next week's rewards better
@@ -2695,6 +2798,10 @@ ActionRemote.OnServerEvent:Connect(function(player, action, arg, arg2, arg3)
 		buyLuckyBox(player)
 	elseif action == "LockBase" then
 		lockBase(player)
+	elseif action == "BuyTrail" then
+		buyTrail(player, arg)
+	elseif action == "EquipTrail" then
+		equipTrail(player, arg)
 	elseif action == "Rebirth" then
 		rebirth(player)
 	elseif action == "Teleport" then
@@ -2800,6 +2907,14 @@ local function loadData(player)
 		d.TutorialDone = result.TutorialDone == true
 		d.WheelClaimed = result.WheelClaimed == true or (result.TutorialDone == true and result.WheelClaimed == nil) -- (old saves already did the tutorial)
 		d.GroupClaimed = result.GroupClaimed == true
+		if type(result.Trails) == "table" then
+			for id, v in pairs(result.Trails) do
+				if v == true and Config.TrailById[id] then
+					d.Trails[id] = true
+				end
+			end
+		end
+		d.TrailOn = (type(result.TrailOn) == "string" and d.Trails[result.TrailOn]) and result.TrailOn or ""
 		if type(result.ShopBuys) == "table" then
 			for id, n in pairs(result.ShopBuys) do
 				if type(id) == "string" and type(n) == "number" then
@@ -2907,7 +3022,7 @@ function saveData(player)
 	for id in pairs(d.Index.P) do
 		table.insert(idxP, id)
 	end
-	local payload = { PetBox = d.PetBox, Index = { G = idxG, P = idxP, GC = d.Index.GC, PC = d.Index.PC }, Placed = placed, Codes = d.Codes, Wacker = d.Wacker, GiftClaimed = d.GiftClaimed, Pets = d.Pets, TutorialDone = d.TutorialDone, WheelClaimed = d.WheelClaimed, DataVersion = 14, GroupClaimed = d.GroupClaimed, ShopBuys = d.ShopBuys }
+	local payload = { PetBox = d.PetBox, Index = { G = idxG, P = idxP, GC = d.Index.GC, PC = d.Index.PC }, Placed = placed, Codes = d.Codes, Wacker = d.Wacker, GiftClaimed = d.GiftClaimed, Pets = d.Pets, TutorialDone = d.TutorialDone, WheelClaimed = d.WheelClaimed, DataVersion = 14, GroupClaimed = d.GroupClaimed, ShopBuys = d.ShopBuys, Trails = d.Trails, TrailOn = d.TrailOn }
 	for _, k in ipairs(NUMBER_KEYS) do
 		payload[k] = d[k]
 	end
@@ -3904,6 +4019,95 @@ do
 	-- A classic blocky Roblox character (Torso/Head/Arms/Legs + face), built from parts so it always works. Every NPC gets its own look
 	-- and personality. look = { Persona, Skin, Shirt, Sleeve, Pants, Hat, HatColor, Hair, HairColor, Glasses, Brows, Mustache,
 	--   Freckles, Apron, Emblem, Scarf, Backpack }
+	-- Dresses an NPC in real Roblox items (Config.NPCOutfits). Roblox builds a rig from the outfit, and its clothing,
+	-- accessories, skin colours and face are moved onto our NPC - its body parts stay the same, so the animations keep working.
+	-- (a global, not a local: this file is close to Luau's 200-local limit)
+	function dressNPC(model, o)
+		local ok, rig = pcall(function()
+			local desc
+			if (o.UserId or 0) > 0 then
+				desc = Players:GetHumanoidDescriptionFromUserId(o.UserId)
+			else
+				desc = Instance.new("HumanoidDescription")
+				desc.Shirt = o.Shirt or 0
+				desc.Pants = o.Pants or 0
+				desc.Face = o.Face or 0
+				local ids = {}
+				for _, id in ipairs(o.Accessories or {}) do
+					table.insert(ids, tostring(id))
+				end
+				desc.HatAccessory = table.concat(ids, ",")
+			end
+			return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R6)
+		end)
+		if not ok or not rig or not model.Parent then
+			warn("[NPC] couldn't load the outfit for " .. model.Name .. ": " .. tostring(rig) .. " - keeping the built-in look")
+			return
+		end
+		local hum = Instance.new("Humanoid") -- lets classic Shirt / Pants show on the NPC's torso, arms and legs
+		hum.RequiresNeck = false
+		hum.BreakJointsOnDeath = false
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+		hum.Parent = model
+		local hasItems, hasClothes, hasFace = false, false, false
+		for _, c in ipairs(rig:GetDescendants()) do
+			if c:IsA("Accessory") then
+				hasItems = true
+			elseif c:IsA("Shirt") or c:IsA("Pants") then
+				hasClothes = true
+			elseif c:IsA("Decal") and c.Name == "face" and c.Texture ~= "" and ((o.UserId or 0) > 0 or (o.Face or 0) > 0) then
+				hasFace = true
+			end
+		end
+		-- take off the built-in pieces the real items replace
+		local REPLACED = {
+			hair = { "Hair", "Hairband", "Pigtail", "PigtailTip", "HatBrim", "HatCrown", "HatBand", "Cap", "CapBill", "CapStripe", "Feather", "Headband", "BunnyEar", "BunnyEarInner", "CrownBand", "CrownSpike" },
+			clothes = { "Apron", "ApronPocket", "Gadget", "Bolt", "Heart", "Scarf", "ScarfTail" },
+			face = { "EyeWhite", "Pupil", "EyeShine", "Cheek", "Brow", "Smile", "Tongue", "Mustache", "MustacheCurl", "Freckle", "GoggleStrap", "GoggleRim", "GoggleLens", "ShadeBar", "ShadeLens", "ShadeGlint" },
+		}
+		local drop = {}
+		for kind, list in pairs(REPLACED) do
+			if (kind == "hair" and hasItems) or (kind == "clothes" and hasClothes) or (kind == "face" and hasFace) then
+				for _, n in ipairs(list) do
+					drop[n] = true
+				end
+			end
+		end
+		for _, p in ipairs(model:GetChildren()) do
+			if p:IsA("BasePart") and drop[p.Name] then
+				p:Destroy()
+			end
+		end
+		local head = model:FindFirstChild("Head")
+		for _, c in ipairs(rig:GetChildren()) do
+			if c:IsA("Shirt") or c:IsA("Pants") or c:IsA("ShirtGraphic") or ((o.UserId or 0) > 0 and c:IsA("BodyColors")) then
+				c.Parent = model
+			elseif c:IsA("Accessory") then
+				local handle = c:FindFirstChild("Handle")
+				if handle then
+					for _, w in ipairs(handle:GetChildren()) do
+						if w:IsA("JointInstance") or w:IsA("WeldConstraint") then
+							w:Destroy()
+						end
+					end
+					handle.Anchored = false
+					handle.CanCollide = false
+					handle.Massless = true
+					hum:AddAccessory(c)
+				end
+			end
+		end
+		if hasFace and head then
+			local f = rig:FindFirstChild("Head") and rig.Head:FindFirstChild("face")
+			if f then
+				f.Parent = head
+			end
+		end
+		rig:Destroy()
+	end
+
 	local function makeNPC(displayName, pos, yaw, look)
 		local model = Instance.new("Model")
 		model.Name = displayName
@@ -3944,15 +4148,28 @@ do
 		hm.Scale = V(1.25, 1.25, 1.25)
 		hm.Parent = head
 		-- a cartoon face built from parts (big shiny eyes, rosy cheeks, a wide smile) to match the Goobers' style
+		-- (it skips whatever the NPC already has: glasses cover the eyes, its own brows, and the smile moves under a mustache)
 		for _, s in ipairs({ -1, 1 }) do
-			ball("EyeWhite", 0.36, CF(s * 0.3, 1.62, -0.56), Color3.fromRGB(255, 255, 255)).Size = V(0.34, 0.42, 0.14)
-			ball("Pupil", 0.2, CF(s * 0.3, 1.6, -0.63), dark).Size = V(0.2, 0.26, 0.08)
-			ball("EyeShine", 0.08, CF(s * 0.3 + 0.05, 1.68, -0.68), Color3.fromRGB(255, 255, 255), NEON)
+			if not look.Glasses then
+				ball("EyeWhite", 0.36, CF(s * 0.3, 1.62, -0.56), Color3.fromRGB(255, 255, 255)).Size = V(0.34, 0.42, 0.14)
+				ball("Pupil", 0.2, CF(s * 0.3, 1.6, -0.63), dark).Size = V(0.2, 0.26, 0.08)
+				ball("EyeShine", 0.08, CF(s * 0.3 + 0.05, 1.68, -0.68), Color3.fromRGB(255, 255, 255), NEON)
+			end
 			ball("Cheek", 0.2, CF(s * 0.55, 1.36, -0.5), Color3.fromRGB(255, 150, 175)).Size = V(0.26, 0.13, 0.06)
-			bp("Brow", V(0.3, 0.07, 0.06), CF(s * 0.3, 1.92, -0.58) * rz(s * -8), hair)
+			if not look.Brows then
+				bp("Brow", V(0.3, 0.07, 0.06), CF(s * 0.3, 1.92, -0.58) * rz(s * -8), hair)
+			end
 		end
-		ball("Smile", 0.5, CF(0, 1.28, -0.58), Color3.fromRGB(90, 30, 50)).Size = V(0.52, 0.16, 0.08)
-		ball("Tongue", 0.2, CF(0, 1.24, -0.61), Color3.fromRGB(255, 120, 140)).Size = V(0.22, 0.08, 0.05)
+		local smileY = look.Mustache and 1.1 or 1.28
+		ball("Smile", 0.5, CF(0, smileY, -0.58), Color3.fromRGB(90, 30, 50)).Size = V(0.52, 0.16, 0.08)
+		ball("Tongue", 0.2, CF(0, smileY - 0.04, -0.61), Color3.fromRGB(255, 120, 140)).Size = V(0.22, 0.08, 0.05)
+		-- standard attachment points, so real Roblox accessories (hats, hair, backpacks...) can be worn (Config.NPCOutfits)
+		for name, at in pairs({ HatAttachment = V(0, 0.6, 0), HairAttachment = V(0, 0.6, 0), FaceFrontAttachment = V(0, 0, -0.6), FaceCenterAttachment = V(0, 0, 0) }) do
+			local a = Instance.new("Attachment")
+			a.Name = name
+			a.Position = at
+			a.Parent = head
+		end
 		bp("Left Arm", V(1, 2, 1), CF(-1.5, 0, 0), look.Sleeve or look.Skin)
 		bp("Right Arm", V(1, 2, 1), CF(1.5, 0, 0), look.Sleeve or look.Skin)
 		bp("Left Leg", V(1, 2, 1), CF(-0.5, -2, 0), look.Pants)
@@ -4076,10 +4293,25 @@ do
 			end
 		end
 
+		for name, at in pairs({
+			NeckAttachment = V(0, 1, 0), BodyFrontAttachment = V(0, 0, -0.5), BodyBackAttachment = V(0, 0, 0.5),
+			LeftCollarAttachment = V(-1, 1, 0), RightCollarAttachment = V(1, 1, 0),
+			WaistFrontAttachment = V(0, -1, -0.5), WaistCenterAttachment = V(0, -1, 0), WaistBackAttachment = V(0, -1, 0.5),
+		}) do
+			local a = Instance.new("Attachment")
+			a.Name = name
+			a.Position = at
+			a.Parent = torso
+		end
+
 		model.PrimaryPart = torso
 		model:SetAttribute("Persona", look.Persona or "")
 		CollectionService:AddTag(model, "NPC")
 		model.Parent = World
+		local o = Config.NPCOutfits and Config.NPCOutfits[displayName]
+		if o and ((o.UserId or 0) > 0 or (o.Shirt or 0) > 0 or (o.Pants or 0) > 0 or #(o.Accessories or {}) > 0 or (o.Face or 0) > 0) then
+			task.spawn(dressNPC, model, o)
+		end
 		return model, torso, head
 	end
 
@@ -5498,6 +5730,26 @@ do
 					notify(target, cfg.Name .. " is hunting you! Drop the Goober or run for the entrance!", RED, "alarm")
 				end
 			end
+			-- CATCH-UP: a hunting boss that has been left far behind (e.g. you dropped the Goober, it walked home, you grabbed it
+			-- again) jumps back to a short distance behind you, then keeps chasing at its normal speed
+			local T = Config.BossTuning
+			if hunting and targetDist > (T.CatchUpDistance or 70) + cfg.Size and os.clock() - (b.LastCatchUp or 0) > (T.CatchUpCooldown or 4) then
+				b.LastCatchUp = os.clock()
+				local tp = targetHrp.Position
+				local away = Vector3.new(b.Pos.X - tp.X, 0, b.Pos.Z - tp.Z)
+				away = away.Magnitude > 0.1 and away.Unit or Vector3.new(1, 0, 0)
+				local behind = (T.CatchUpBehind or 45) + cfg.Size * 0.5
+				b.Pos = Vector3.new(tp.X, 0, tp.Z) + away * behind
+				b.Pos = Vector3.new(math.clamp(b.Pos.X, RS_START + 8, RUNWAY_END - 3), 0, math.clamp(b.Pos.Z, -RW / 2 + 4, RW / 2 - 4))
+				targetDist = (Vector3.new(tp.X, 0, tp.Z) - b.Pos).Magnitude
+				local poof = Instance.new("Explosion")
+				poof.BlastPressure = 0
+				poof.BlastRadius = 0
+				poof.DestroyJointRadiusPercent = 0
+				poof.Position = b.Pos + Vector3.new(0, b.Half, 0)
+				poof.Parent = Workspace
+				notify(target, cfg.Name .. " caught up with you! RUN!", RED, "alarm")
+			end
 			if watched or hunting then
 				local goal = hunting and Vector3.new(targetHrp.Position.X, 0, targetHrp.Position.Z) or b.Home
 				local speed = hunting and cfg.Speed or cfg.Speed * 0.6
@@ -5566,6 +5818,7 @@ local function onCharacter(player, char)
 	if hrp and plot then
 		char:PivotTo(spawnCFrame(plot)) -- facing forward, towards the plaza
 	end
+	applyTrail(player)
 	if d.Wacker then
 		giveWacker(player)
 	end
@@ -5701,15 +5954,36 @@ do
 	----------------------------------------------------------------
 	-- LEADERBOARD DATA (OrderedDataStores: shared by every server)
 	----------------------------------------------------------------
-	local lbStores = {}
+	-- MONEY has no ceiling: OrderedDataStores only hold whole numbers up to ~9.2 quintillion, so big cash is stored
+	-- "compressed" - under 1Qa it is saved exactly, above that as a scaled log10 that still sorts in the right order
+	-- and fits any number a player could ever reach. It lives in its own store ("..._big"); the old Cash store is kept
+	-- read-only so players who haven't come back since still show up with their old score.
+	local BIG = 1e15
+	local function encodeCash(v)
+		v = math.max(0, v)
+		if v < BIG then
+			return math.floor(v)
+		end
+		return math.floor(BIG + (math.log10(v) - 15) * 1e16)
+	end
+	local function decodeCash(e)
+		if e < BIG then
+			return e
+		end
+		return 10 ^ (15 + (e - BIG) / 1e16)
+	end
+	local lbStores, legacyCash = {}, nil
 	for _, info in ipairs(LB_INFO) do
 		local ok, st = pcall(function()
-			return DataStoreService:GetOrderedDataStore("GAG_LB_" .. info.Key .. "_" .. Config.Leaderboards.Version)
+			return DataStoreService:GetOrderedDataStore("GAG_LB_" .. info.Key .. "_" .. Config.Leaderboards.Version .. (info.Key == "Cash" and "_big" or ""))
 		end)
 		if ok then
 			lbStores[info.Key] = st
 		end
 	end
+	pcall(function()
+		legacyCash = DataStoreService:GetOrderedDataStore("GAG_LB_Cash_" .. Config.Leaderboards.Version)
+	end)
 
 	local nameCache = {}
 	local function userName(uid)
@@ -5730,7 +6004,7 @@ do
 
 	local function lbValue(d, key)
 		if key == "Cash" then
-			return math.floor(math.min(d.Cash, 9e18))
+			return encodeCash(d.Cash)
 		elseif key == "Donated" then
 			return math.floor(d.Donated)
 		end
@@ -5758,25 +6032,55 @@ do
 				st:RemoveAsync(tostring(player.UserId))
 			end)
 		end
+		if legacyCash then
+			pcall(function()
+				legacyCash:RemoveAsync(tostring(player.UserId))
+			end)
+		end
+	end
+
+	local function topOf(st)
+		local ok, pages = pcall(function()
+			return st:GetSortedAsync(false, Config.Leaderboards.Size)
+		end)
+		if ok and pages then
+			local ok2, top = pcall(function()
+				return pages:GetCurrentPage()
+			end)
+			if ok2 then
+				return top
+			end
+		end
+		return {}
 	end
 
 	function refreshBoards()
 		for key in pairs(LB) do
 			local st = lbStores[key]
 			local entries = {}
-			if st then
-				local ok, pages = pcall(function()
-					return st:GetSortedAsync(false, Config.Leaderboards.Size)
-				end)
-				if ok and pages then
-					local ok2, top = pcall(function()
-						return pages:GetCurrentPage()
-					end)
-					if ok2 then
-						for _, e in ipairs(top) do
-							table.insert(entries, { Name = userName(tonumber(e.key) or 0), Value = e.value })
+			if st and key == "Cash" then
+				-- new (uncapped) scores first, then old-store scores for anyone not in the new one yet
+				local best, seen = {}, {}
+				for _, e in ipairs(topOf(st)) do
+					seen[e.key] = true
+					table.insert(best, { Key = e.key, Value = decodeCash(e.value) })
+				end
+				if legacyCash then
+					for _, e in ipairs(topOf(legacyCash)) do
+						if not seen[e.key] then
+							table.insert(best, { Key = e.key, Value = e.value })
 						end
 					end
+				end
+				table.sort(best, function(a, b)
+					return a.Value > b.Value
+				end)
+				for i = 1, math.min(#best, Config.Leaderboards.Size) do
+					table.insert(entries, { Name = userName(tonumber(best[i].Key) or 0), Value = best[i].Value })
+				end
+			elseif st then
+				for _, e in ipairs(topOf(st)) do
+					table.insert(entries, { Name = userName(tonumber(e.key) or 0), Value = e.value })
 				end
 			end
 			renderBoard(key, entries)
