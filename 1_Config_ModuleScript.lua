@@ -185,6 +185,11 @@ Config.DonationThankYou = {
 }
 Config.EventEvery = 480 -- seconds between Mutation Hours
 Config.EventLength = 90
+Config.EventMutations = { "Galaxy", "Chocolate", "Toxic" } -- each Mutation Hour picks ONE of these
+Config.EventMutationBoost = 60 -- how much likelier the picked event mutation gets during its Mutation Hour
+Config.PerkLuck = 1.15 -- Galaxy perk: luck x1.15
+Config.PerkSpeed = 1.08 -- Chocolate perk: run speed x1.08
+Config.PerkCarry = 1 -- Toxic perk: +1 carry
 Config.TeleportCooldown = 3
 
 Config.StartCash = 100
@@ -431,12 +436,17 @@ Config.Rarities = {
 	Secret = { Rank = 6, Color = Color3.fromRGB(255, 100, 225) },
 }
 
-Config.MutationList = { "Normal", "Golden", "Neon", "Glitched" }
+Config.MutationList = { "Normal", "Golden", "Neon", "Glitched", "Galaxy", "Chocolate", "Toxic" }
 Config.Mutations = {
 	Normal = { Mult = 1, Weight = 85, Color = nil, Material = nil },
 	Golden = { Mult = 2, Weight = 10, Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Metal },
 	Neon = { Mult = 5, Weight = 4, Color = Color3.fromRGB(60, 255, 255), Material = Enum.Material.Neon },
 	Glitched = { Mult = 10, Weight = 1, Color = Color3.fromRGB(255, 40, 255), Material = Enum.Material.Neon },
+	-- EVENT mutations: very rare normally, MUCH more common during a Mutation Hour that picks them. Each gives its owner a real
+	-- perk while at least one Goober with it is placed in their base (see Config.MutationPerks).
+	Galaxy = { Mult = 12, Weight = 0.1, Color = Color3.fromRGB(110, 70, 230), Material = Enum.Material.Neon, Event = true, Perk = "Luck", PerkText = "+15% Luck (better Lucky Box odds)" },
+	Chocolate = { Mult = 6, Weight = 0.1, Color = Color3.fromRGB(120, 70, 40), Material = Enum.Material.SmoothPlastic, Event = true, Perk = "Speed", PerkText = "+8% run speed" },
+	Toxic = { Mult = 8, Weight = 0.1, Color = Color3.fromRGB(140, 255, 60), Material = Enum.Material.Neon, Event = true, Perk = "Carry", PerkText = "+1 Carry Capacity" },
 }
 
 ----------------------------------------------------------------
@@ -922,12 +932,14 @@ function Config.RollGoober(zone, luckLvl)
 	return pool[#pool][1]
 end
 
-function Config.RollMutation(boost)
+function Config.RollMutation(boost, eventMut) -- eventMut = the event mutation the current Mutation Hour picked (or nil)
 	boost = boost or 1
 	local weights, total = {}, 0
 	for _, name in ipairs(Config.MutationList) do
 		local w = Config.Mutations[name].Weight
-		if name ~= "Normal" then
+		if name == eventMut then
+			w *= Config.EventMutationBoost
+		elseif name ~= "Normal" then
 			w *= boost
 		end
 		weights[name] = w
@@ -952,14 +964,16 @@ function Config.ThankYouFor(name, total) -- picks the right escalating thank-you
 	return "Thank you for donating!"
 end
 
-function Config.RollLuckyGoober(luckLvl, premium) -- the Lucky Box: ALWAYS a Legendary or Mythic Goober
+function Config.RollLuckyGoober(luckLvl, premium, luckMult) -- the Lucky Box: ALWAYS a Legendary or Mythic Goober
 	luckLvl = luckLvl or 0
 	local mythicBias = premium and 0.85 or 0.4 -- the Robux Lucky Box has much better odds at a Mythic
+	-- luck only boosts the MYTHIC weights (boosting every entry equally would cancel out and do nothing)
+	local luck = (1 + luckLvl * 0.15) * (luckMult or 1)
 	local pool, total = {}, 0
 	for _, g in ipairs(Config.Goobers) do
 		if g.Rarity == "Legendary" or g.Rarity == "Mythic" then
-			local bias = (g.Rarity == "Mythic") and mythicBias or 1
-			local w = g.Weight * bias * (1 + luckLvl * 0.15)
+			local bias = (g.Rarity == "Mythic") and mythicBias * luck or 1
+			local w = g.Weight * bias
 			total += w
 			table.insert(pool, { g, w })
 		end
@@ -972,6 +986,32 @@ function Config.RollLuckyGoober(luckLvl, premium) -- the Lucky Box: ALWAYS a Leg
 		end
 	end
 	return pool[#pool][1]
+end
+
+-- Event-mutation perks from the Goobers placed in a base. Returns { Luck = mult, Speed = mult, Carry = bonus, Names = { "Galaxy", ... } }
+function Config.MutationPerks(placed, maxSlots)
+	local have = {}
+	for s, item in ipairs(placed or {}) do
+		if maxSlots and s > maxSlots then
+			break
+		end
+		local def = type(item) == "table" and Config.Mutations[item.Mut]
+		if def and def.Perk then
+			have[def.Perk] = item.Mut
+		end
+	end
+	local names = {}
+	for _, name in ipairs(Config.EventMutations) do
+		if have[Config.Mutations[name].Perk] then
+			table.insert(names, name)
+		end
+	end
+	return {
+		Luck = have.Luck and Config.PerkLuck or 1,
+		Speed = have.Speed and Config.PerkSpeed or 1,
+		Carry = have.Carry and Config.PerkCarry or 0,
+		Names = names,
+	}
 end
 
 return Config

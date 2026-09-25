@@ -80,7 +80,7 @@ local NoGrab = {} -- [player] = os.clock() until which they can't pick up goober
 local MagnetFilter = {} -- [player] = { [rarityRank] = true }: which rarities the Magnet Potion pulls in
 local TempAdmins = {} -- [userId] = os.clock() when the temporary admin ends (math.huge = until they leave)
 local WavesPaused = false
-local MutationEvent = false
+local MutationEvent = false -- during a Mutation Hour: the name of the event mutation it picked ("Galaxy" / "Chocolate" / "Toxic")
 local Plots = {}
 local rng = Random.new()
 
@@ -181,6 +181,15 @@ end
 local function itemName(item)
 	local prefix = (item.Mut ~= "Normal") and (item.Mut .. " ") or ""
 	return prefix .. item.Id
+end
+
+-- event-mutation perks (Galaxy / Chocolate / Toxic) from the Goobers placed in this player's base.
+-- (plain globals, not locals: this file is close to Luau's 200-local limit)
+function perksOf(d)
+	return Config.MutationPerks(d.Placed, Config.MaxSlots(d.SlotLvl, d.FloorLvl))
+end
+function carryCapOf(d)
+	return Config.CarryCap(d.CarryLvl) + perksOf(d).Carry
 end
 
 local function itemIncome(item)
@@ -516,7 +525,8 @@ local function updateStats(player)
 	player:SetAttribute("SlotsLvl", d.SlotLvl)
 	player:SetAttribute("FloorsLvl", d.FloorLvl)
 	player:SetAttribute("LuckLvl", d.LuckLvl)
-	player:SetAttribute("CarryCap", Config.CarryCap(d.CarryLvl))
+	player:SetAttribute("CarryCap", carryCapOf(d))
+	player:SetAttribute("MutPerks", table.concat(perksOf(d).Names, ",")) -- the client shows these as perk chips
 	player:SetAttribute("MaxSlots", Config.MaxSlots(d.SlotLvl, d.FloorLvl))
 	player:SetAttribute("UsedSlots", #d.Placed)
 	player:SetAttribute("Locked", plot and plot.Locked or false)
@@ -578,6 +588,7 @@ local function applySpeed(player)
 	local vip = OwnsPass[player] and OwnsPass[player].VIP
 	local _, petSpeed = petBonus(d)
 	local speed = (Config.WalkSpeed(d.SpeedLvl, vip) + d.Rebirths * Config.MaxWalkSpeedPerRebirth) * (1 + petSpeed) -- rebirths raise the ceiling further, on top of levels
+	speed *= perksOf(d).Speed -- Chocolate mutation perk
 	local jump = Config.JumpPower
 	if b and b.Speed > now then
 		speed *= 1.5
@@ -816,7 +827,7 @@ local function createPickup(item, pos, respawnZone, lifetime)
 		if (Stunned[player] or 0) > os.clock() then
 			return
 		end
-		if #list >= Config.CarryCap(d.CarryLvl) then
+		if #list >= carryCapOf(d) then
 			if not silent then
 				notify(player, "Hands full!", RED)
 			end
@@ -1630,8 +1641,8 @@ local function grantItem(player, item, source, reveal)
 end
 
 local function rollLuckyItem(d, premium)
-	local def = Config.RollLuckyGoober(d.LuckLvl, premium)
-	return { Id = def.Id, Mut = Config.RollMutation(MutationEvent and 3 or 1) }
+	local def = Config.RollLuckyGoober(d.LuckLvl, premium, perksOf(d).Luck) -- Galaxy mutation perk = better odds
+	return { Id = def.Id, Mut = Config.RollMutation(MutationEvent and 3 or 1, MutationEvent or nil) }
 end
 
 local function buyLuckyBox(player)
@@ -1934,7 +1945,7 @@ function stealGoober(thief, owner, slot)
 		return
 	end
 	local list = Carrying[thief]
-	if not list or #list >= Config.CarryCap(td.CarryLvl) then
+	if not list or #list >= carryCapOf(td) then
 		notify(thief, "Hands full!", RED)
 		return
 	end
@@ -4995,7 +5006,7 @@ do -- scoped: Pity and chooseGoober are only used by spawnPickup right below, wh
 		local x = rng:NextNumber(x0 + 16, x0 + L - 16)
 		local z = rng:NextNumber(-RW / 2 + 10, RW / 2 - 10)
 		local def = chooseGoober(zone)
-		local item = { Id = def.Id, Mut = Config.RollMutation(MutationEvent and 3 or 1), Zone = zone } -- (the zone decides which boss hunts you)
+		local item = { Id = def.Id, Mut = Config.RollMutation(MutationEvent and 3 or 1, MutationEvent or nil), Zone = zone } -- (the zone decides which boss hunts you)
 		createPickup(item, Vector3.new(x, 0, z), zone, nil)
 	end
 end
@@ -5152,14 +5163,8 @@ local WaveNumber = 0
 task.spawn(function()
 	while true do
 		Workspace:SetAttribute("WaveState", "Idle")
-		for t = Config.WaveInterval, 1, -1 do
-			Workspace:SetAttribute("NextWave", t)
-			task.wait(1)
-		end
-		while WavesPaused do
-			task.wait(1)
-		end
-		while true do -- don't even start the warning countdown until somebody has actually stepped into zone 1
+		Workspace:SetAttribute("NextWave", Config.WaveInterval)
+		while true do -- don't even start the flood countdown (it shows a full timer meanwhile) until somebody has actually stepped into zone 1
 			local anyoneIn = false
 			for _, plr in ipairs(Players:GetPlayers()) do
 				local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
@@ -5171,6 +5176,13 @@ task.spawn(function()
 			if anyoneIn then
 				break
 			end
+			task.wait(1)
+		end
+		for t = Config.WaveInterval, 1, -1 do
+			Workspace:SetAttribute("NextWave", t)
+			task.wait(1)
+		end
+		while WavesPaused do
 			task.wait(1)
 		end
 		local wt = pickWaveType()
@@ -5196,14 +5208,19 @@ end)
 -- Mutation Hour event
 task.spawn(function()
 	Workspace:SetAttribute("Event", "")
+	Workspace:SetAttribute("EventMutation", "")
 	while true do
 		task.wait(Config.EventEvery)
-		MutationEvent = true
-		Workspace:SetAttribute("Event", "MUTATION HOUR - rare Goobers 3x more likely!")
-		notifyAll("MUTATION HOUR!", Color3.fromRGB(255, 120, 255), "reveal")
+		local mut = Config.EventMutations[rng:NextInteger(1, #Config.EventMutations)]
+		local def = Config.Mutations[mut]
+		MutationEvent = mut
+		Workspace:SetAttribute("Event", ("%s MUTATION HOUR - %s Goobers give %s!"):format(mut:upper(), mut, def.PerkText))
+		Workspace:SetAttribute("EventMutation", mut) -- the client's pulsing event icon reads this
+		notifyAll(("%s MUTATION HOUR!"):format(mut:upper()), def.Color, "reveal")
 		task.wait(Config.EventLength)
 		MutationEvent = false
 		Workspace:SetAttribute("Event", "")
+		Workspace:SetAttribute("EventMutation", "")
 	end
 end)
 
