@@ -513,30 +513,102 @@ local introOverlay = make("TextButton", {
 	AutoButtonColor = false,
 	ZIndex = 60,
 }, gui)
-make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 90, 200), Color3.fromRGB(70, 60, 230)), Rotation = 90 }, introOverlay)
+do -- a candy sky that slowly swirls
+	local bg = make("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 110, 200)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 90, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 190, 255)),
+		}),
+		Rotation = 60,
+	}, introOverlay)
+	TweenService:Create(bg, TweenInfo.new(8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Rotation = 150 }):Play()
+end
 local loadTitle = label({
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.42),
-	Size = UDim2.fromOffset(760, 130),
+	Position = UDim2.fromScale(0.5, 0.38),
+	Size = UDim2.fromOffset(820, 140),
 	TextScaled = true,
-	TextColor3 = Color3.fromRGB(255, 235, 90),
+	TextColor3 = WHITE,
 	Text = "GRAB A GOOBER!",
 	ZIndex = 61,
 }, introOverlay)
+loadTitle.Font = Enum.Font.LuckiestGuy
 loadTitle:FindFirstChildOfClass("UIStroke").Thickness = 8
-local loadBarBg = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.64), Size = UDim2.fromOffset(340, 18), BackgroundColor3 = Color3.fromRGB(30, 20, 80), ZIndex = 61 }, introOverlay)
-corner(loadBarBg, 9)
-stroke(loadBarBg, 2.5)
-local loadBar = make("Frame", { Size = UDim2.fromScale(0.05, 1), BackgroundColor3 = Color3.fromRGB(255, 230, 90), ZIndex = 62 }, loadBarBg)
-corner(loadBar, 9)
-local loadTip = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.72), Size = UDim2.fromOffset(600, 26), TextSize = 18, TextColor3 = Color3.fromRGB(235, 230, 255), Text = "Loading...", ZIndex = 61 }, introOverlay)
-local LOAD_TIPS = { "Floods can't hurt you in the plaza", "Walk on a pad to collect your money", "Speed has no limit!", "Rebirth to carry more Goobers" }
+make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 250, 150), Color3.fromRGB(255, 160, 40)), Rotation = 90 }, loadTitle) -- golden candy letters
+loadTitle.Rotation = -3
+TweenService:Create(loadTitle, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Rotation = 3 }):Play()
+local loadBarBg = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.7), Size = UDim2.fromOffset(440, 30), BackgroundColor3 = Color3.fromRGB(50, 25, 110), ZIndex = 61 }, introOverlay)
+corner(loadBarBg, 15)
+stroke(loadBarBg, 4, WHITE)
+local loadBar = make("Frame", { Size = UDim2.fromScale(0.05, 1), BackgroundColor3 = WHITE, ZIndex = 62, ClipsDescendants = true }, loadBarBg)
+corner(loadBar, 15)
+do -- rainbow-candy fill whose stripes scroll along
+	local keys = {}
+	local cols = { Color3.fromRGB(255, 120, 200), Color3.fromRGB(255, 225, 90), Color3.fromRGB(120, 230, 255) }
+	for i = 0, 6 do
+		table.insert(keys, ColorSequenceKeypoint.new(i / 6, cols[i % 3 + 1]))
+	end
+	local stripes = make("UIGradient", { Color = ColorSequence.new(keys) }, loadBar)
+	stripes.Offset = Vector2.new(-0.5, 0)
+	TweenService:Create(stripes, TweenInfo.new(1.6, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Offset = Vector2.new(0.5, 0) }):Play()
+end
+local loadTip = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.79), Size = UDim2.fromOffset(640, 28), TextSize = 20, TextColor3 = WHITE, Text = "Loading...", ZIndex = 61 }, introOverlay)
+do
+	-- everything decorative lives in LoadDeco, so the intro can clear it in one go
+	local deco = make("Frame", { Name = "LoadDeco", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 60 }, introOverlay)
+	label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.52), Size = UDim2.fromOffset(520, 44), TextScaled = true, TextColor3 = Color3.fromRGB(190, 240, 255), Text = "🌊 ESCAPE THE FLOOD! 🌊" }, deco)
+	-- three Goober mascots bouncing along the bottom
+	local picks, seen = {}, {}
+	for _, want in ipairs({ "Common", "Epic", "Mythic" }) do
+		for _, g in ipairs(Config.Goobers) do
+			if g.Rarity == want and not seen[want] then
+				seen[want] = true
+				table.insert(picks, g)
+			end
+		end
+	end
+	for i, g in ipairs(picks) do
+		local rar = Config.Rarities[g.Rarity]
+		local slot = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.2 + (i - 1) * 0.3, 0, 1, -24), Size = UDim2.fromOffset(110, 110), BackgroundTransparency = 1 }, deco)
+		local art = drawCreature(slot, { Style = g.Style, Color = g.Color, RarityColor = rar.Color, Rank = rar.Rank }, 110)
+		art.Position = UDim2.fromOffset(0, 0)
+		TweenService:Create(slot, TweenInfo.new(0.45 + i * 0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, -1, true), { Position = UDim2.new(0.2 + (i - 1) * 0.3, 0, 1, -54) }):Play()
+	end
+	-- soapy bubbles drifting up the screen
+	task.spawn(function()
+		while deco.Parent do
+			local sz = math.random(18, 64)
+			local b = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(math.random(), 0, 1, sz), Size = UDim2.fromOffset(sz, sz), BackgroundColor3 = WHITE, BackgroundTransparency = 0.8 }, deco)
+			corner(b, sz / 2)
+			make("UIStroke", { Thickness = 2, Color = WHITE, Transparency = 0.4 }, b)
+			local d = 3 + math.random() * 3
+			tween(b, d, { Position = UDim2.new(b.Position.X.Scale + (math.random() - 0.5) * 0.15, 0, 0, -sz) }, Enum.EasingStyle.Sine)
+			task.delay(d, function()
+				b:Destroy()
+			end)
+			task.wait(0.22)
+		end
+	end)
+end
+local LOAD_TIPS = {
+	"Floods can't hurt you in the plaza 🏝️",
+	"Walk on a pad to collect your money 💰",
+	"Rebirth to carry more Goobers ✨",
+	"Galaxy, Chocolate and Toxic Goobers give you perks 🌌🍫☢️",
+	"A zone's boss wakes up if you steal ITS Goobers 👹",
+	"Some waves are jumpable... some are NOT 🌈😈",
+}
 loadTip.Text = LOAD_TIPS[math.random(#LOAD_TIPS)]
 task.spawn(function()
-	local t = 0
+	local t, nextTip = 0, 2.8
 	while introOverlay.Parent and not workspace:GetAttribute("WorldReady") do
 		t += 0.1
 		loadBar.Size = UDim2.fromScale(math.min(0.92, 0.05 + t * 0.09), 1)
+		if t >= nextTip and loadTip.Parent then
+			nextTip = t + 2.8
+			loadTip.Text = LOAD_TIPS[math.random(#LOAD_TIPS)]
+		end
 		task.wait(0.1)
 	end
 	if loadBar.Parent then
@@ -764,8 +836,8 @@ do
 	end
 
 	-- Calm, spacious sound: a soft reverb and a gentle high-cut on everything in the music group.
-	make("ReverbSoundEffect", { DecayTime = 4.5, Density = 0.9, Diffusion = 0.9, DryLevel = -5, WetLevel = 0 }, musicGroup)
-	make("EqualizerSoundEffect", { LowGain = 0, MidGain = -2, HighGain = -16 }, musicGroup)
+	make("ReverbSoundEffect", { DecayTime = 3.5, Density = 0.9, Diffusion = 0.9, DryLevel = 0, WetLevel = -4 }, musicGroup)
+	make("EqualizerSoundEffect", { LowGain = 2, MidGain = 0, HighGain = -6 }, musicGroup) -- (was -16: that cut made it sound muffled and quiet)
 
 	local function musicTarget()
 		return settings.music and Config.Sounds.MusicVolume or 0
@@ -862,10 +934,10 @@ do
 					pos = math.clamp(pos + moves[math.random(#moves)], 1, #mood.scale + 2)
 					local octave = (pos - 1) // #mood.scale
 					local deg = mood.scale[(pos - 1) % #mood.scale + 1] + 12 * octave
-					playRaw(SND_PING, 0.36 * 2 ^ ((mood.root + deg) / 12), 0.1 + math.random() * 0.05, musicGroup)
+					playRaw(SND_PING, 0.36 * 2 ^ ((mood.root + deg) / 12), 0.3 + math.random() * 0.08, musicGroup)
 				end
 				if step % 6 == 1 then -- a soft, sparse bass note underneath
-					playRaw(SND_PING, 0.18 * 2 ^ (mood.root / 12), 0.16, musicGroup)
+					playRaw(SND_PING, 0.18 * 2 ^ (mood.root / 12), 0.36, musicGroup)
 				end
 			end
 			task.wait(mood.beat * (0.9 + math.random() * 0.2))
@@ -912,7 +984,7 @@ do
 		Text = "",
 		ZIndex = 5,
 	}, gui)
-	toastLabel.BackgroundColor3 = Color3.fromRGB(38, 34, 92)
+	toastLabel.BackgroundColor3 = Color3.fromRGB(95, 45, 175)
 	make("UIPadding", { PaddingLeft = UDim.new(0, 24), PaddingRight = UDim.new(0, 24) }, toastLabel)
 	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, toastLabel)
 	-- no outline: just the indigo pill and the coloured text (a coloured text-stroke looked like a jagged mismatched red line)
@@ -3706,6 +3778,26 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		Action:FireServer("PlaceTrap")
 	end
 end)
+-- LEFT-SIDE HIDE ARROW: a tab just right of the button grid slides the grid (and COLLECT ALL) off-screen; tap again to bring it back.
+do
+	local items = { left, collectBtn }
+	local home = {}
+	for i, it in ipairs(items) do
+		home[i] = it.Position
+	end
+	local tucked = false
+	local tabHome = UDim2.fromOffset(310, 236)
+	local tab = makeButton({ Position = tabHome, Size = UDim2.fromOffset(isTouch and 40 or 34, 58), Text = "<", TextSize = 28, ZIndex = 6 }, gui, Color3.fromRGB(160, 110, 255))
+	tab.Activated:Connect(function()
+		tucked = not tucked
+		tab.Text = tucked and ">" or "<"
+		for i, it in ipairs(items) do
+			tween(it, 0.35, { Position = tucked and (home[i] - UDim2.fromOffset(340, 0)) or home[i] }, Enum.EasingStyle.Back, tucked and Enum.EasingDirection.In or Enum.EasingDirection.Out)
+		end
+		tween(tab, 0.35, { Position = tucked and UDim2.fromOffset(0, 236) or tabHome }, Enum.EasingStyle.Back)
+	end)
+end
+
 -- RIGHT-SIDE HIDE ARROW: a little tab on the right edge tucks the Robux star + Spin icons off-screen (great on phones),
 -- tap it again to slide them back.
 do
@@ -3977,6 +4069,9 @@ local function runIntro()
 	end
 	if loadTip.Parent then
 		loadTip:Destroy()
+	end
+	if overlay:FindFirstChild("LoadDeco") then
+		overlay.LoadDeco:Destroy()
 	end
 	overlay.Activated:Connect(function()
 		skip = true

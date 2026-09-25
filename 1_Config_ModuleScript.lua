@@ -371,7 +371,7 @@ Config.PlazaSky = {
 	Clock = 14.2, Brightness = 2, Exposure = 0,
 	Ambient = Color3.fromRGB(128, 138, 172), Outdoor = Color3.fromRGB(150, 160, 195),
 	Atmo = Color3.fromRGB(170, 200, 248), Decay = Color3.fromRGB(240, 195, 215),
-	Haze = 0.6, Density = 0.3, Tint = Color3.fromRGB(255, 250, 246), Saturation = 0.1, Bloom = 0.15,
+	Haze = 0.6, Density = 0.3, Tint = Color3.fromRGB(255, 248, 250), Saturation = 0.22, Bloom = 0.22, -- a touch more candy colour + glow
 }
 Config.PlazaWallColor = Color3.fromRGB(150, 158, 236)
 Config.ZoneClock = { 13.5, 17.6, 12, 22, 11, 14.5, 19.8, 16.5, 21, 23.5, 22.5, 10, 18, 0.8 } -- time of day in each zone (0-24)
@@ -397,8 +397,8 @@ function Config.SkyFor(z)
 		Haze = tw.Haze or (night and 1.4 or 0.8),
 		Density = tw.Density or 0.32,
 		Tint = tw.Tint or white:Lerp(zn.Accent, 0.12),
-		Saturation = tw.Saturation or 0.15,
-		Bloom = night and 0.3 or 0.15,
+		Saturation = tw.Saturation or 0.24,
+		Bloom = night and 0.34 or 0.22,
 	}
 end
 function Config.WallColorFor(z) -- z = 0 -> the plaza
@@ -820,9 +820,9 @@ Config.ShopItems = {
 ----------------------------------------------------------------
 Config.Sounds = {
 	MusicIds = {}, -- add 3+ Roblox audio ids here (e.g. "rbxassetid://1234567890") for a shuffled playlist of real songs
-	MusicVolume = 0.45,
+	MusicVolume = 0.9, -- (was 0.45: the music was drowned out by the sound effects)
 	MusicSwitchSeconds = 90, -- how often the music changes to a new song / mood
-	SfxVolume = 0.65,
+	SfxVolume = 0.5,
 	Horn = "", -- the blaring flood horn
 	Pop = "", Grab = "", Deposit = "", Sell = "", Buy = "", Error = "", Click = "",
 	Trap = "", Wack = "", Stuck = "", Reveal = "", Whoosh = "", Alarm = "", -- Alarm: warns you a boss woke up
