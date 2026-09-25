@@ -5759,6 +5759,20 @@ do
 					local dir = to.Unit
 					b.Pos = b.Pos + dir * math.min(len, speed * dt)
 					b.Facing = dir
+				elseif not hunting then
+					-- idle at home: turn to face the nearest player in its zone (not the wall behind it), else face the zone entrance
+					local look, best = Vector3.new(-1, 0, 0), math.huge
+					for _, plr in ipairs(players) do
+						local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+						if hrp and Config.ZoneAtX(hrp.Position.X) == b.Zone then
+							local off = Vector3.new(hrp.Position.X - b.Pos.X, 0, hrp.Position.Z - b.Pos.Z)
+							if off.Magnitude > 1 and off.Magnitude < best then
+								best, look = off.Magnitude, off.Unit
+							end
+						end
+					end
+					local turned = b.Facing:Lerp(look, math.min(1, dt * 4))
+					b.Facing = turned.Magnitude > 0.01 and turned.Unit or look
 				end
 				b.Pos = Vector3.new(math.clamp(b.Pos.X, RS_START + 8, RUNWAY_END - 3), 0, math.clamp(b.Pos.Z, -RW / 2 + 4, RW / 2 - 4))
 				b.Bob += dt * (hunting and 9 or 3)

@@ -3581,11 +3581,6 @@ local dailyBtn = sideButton(8, "DAILY", Color3.fromRGB(255, 205, 80), "daily", f
 	toggleMenu("daily")
 end)
 local dailyBadge = badge(dailyBtn)
-local groupBtn = sideButton(9, "GROUP GIFT", Color3.fromRGB(120, 200, 255), "group", function()
-	toast("Coming soon :)", Color3.fromRGB(150, 210, 255), "pop")
-end)
-label({ AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -6, 1, -2), Size = UDim2.fromOffset(90, 12), TextSize = 9, TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = Color3.fromRGB(255, 230, 140), Text = "COMING SOON..." }, groupBtn)
-local groupBadge = badge(groupBtn)
 sideButton(10, "SETTINGS", Color3.fromRGB(130, 150, 230), "settings", function()
 	toggleMenu("settings")
 end)
@@ -3838,12 +3833,21 @@ do -- scoped: everything else here is only needed to build/wire the Spin icon on
 	local face = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(82, 82), BackgroundColor3 = WHITE }, spinWheelIcon)
 	corner(face, 41)
 	local SPIN_SEG_COLORS = { Color3.fromRGB(220, 220, 230), Color3.fromRGB(90, 170, 255), Color3.fromRGB(190, 110, 255), Color3.fromRGB(255, 170, 60), Color3.fromRGB(230, 60, 70) }
-	local RAYS = 12 -- thin overlapping rays fill each wedge solid
+	-- Each wedge is filled by thin "rays". A GUI frame always rotates about its OWN centre, so every ray is a full-diameter
+	-- bar centred on the wheel with its bottom half faded out by a gradient: only the half pointing outward shows.
+	local HALF = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(0.501, 1), NumberSequenceKeypoint.new(1, 1) })
+	local function ray(width, angle, color, z)
+		local r = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(width, 82), Rotation = angle, BackgroundColor3 = color, BorderSizePixel = 0, ZIndex = z or 1 }, face)
+		make("UIGradient", { Rotation = 90, Transparency = HALF }, r)
+	end
+	local RAYS = 14 -- overlapping rays fill each wedge solid
 	for seg = 1, 5 do
 		for k = 0, RAYS - 1 do
-			make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(8, 41), Rotation = (seg - 1) * 72 + (k + 0.5) * (72 / RAYS), BackgroundColor3 = SPIN_SEG_COLORS[seg], BorderSizePixel = 0 }, face)
+			ray(9, (seg - 1) * 72 + (k + 0.5) * (72 / RAYS), SPIN_SEG_COLORS[seg])
 		end
-		make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(2, 41), Rotation = (seg - 1) * 72, BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2 }, face)
+	end
+	for seg = 1, 5 do
+		ray(3, (seg - 1) * 72, WHITE, 2) -- white dividers between the wedges
 	end
 	TweenService:Create(face, TweenInfo.new(9, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Rotation = 360 }):Play()
 	for i = 1, 10 do -- light bulbs around the rim, half of them twinkling
@@ -5796,8 +5800,6 @@ task.spawn(function()
 			local left = math.max(0, Config.SpinRegenSeconds - (os.time() - lastRegen))
 			spinTimerL.Text = ("Next spin\n%d:%02d"):format(left // 60, left % 60)
 		end
-		groupBtn.Visible = true
-		groupBadge.Visible = false
 		adminBtn.Visible = player:GetAttribute("IsAdmin") == true
 
 		updateShop()
