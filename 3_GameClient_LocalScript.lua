@@ -2533,7 +2533,7 @@ do
 		PetSlot = { col = Color3.fromRGB(255, 140, 210), sym = "PET" },
 	}
 
-	local _, dealsBody = modal("deals", 820, 560, "ROBUX SHOP", Color3.fromRGB(255, 215, 70))
+	local _, dealsBody = modal("deals", 820, 560, "🧺 SHOP", Color3.fromRGB(255, 215, 70))
 	local dealsScroll = make("ScrollingFrame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -3700,45 +3700,87 @@ do
 end
 
 
--- the star: opens the Robux shop
+-- the SHOP button: a round candy badge with a basket full of goodies (opens the Robux shop)
 local starHolder = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, -60), Size = UDim2.fromOffset(120, 132), BackgroundTransparency = 1 }, gui)
-local star = burst(starHolder, 120, GOLD)
-star.Position = UDim2.fromOffset(0, 0)
-local starText = label({ Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(120, 120), TextSize = 26, TextColor3 = Color3.fromRGB(190, 20, 40), Text = "50%\nOFF", ZIndex = 3 }, starHolder)
-starText.TextScaled = true
-make("UIPadding", { PaddingLeft = UDim.new(0, 26), PaddingRight = UDim.new(0, 26), PaddingTop = UDim.new(0, 26), PaddingBottom = UDim.new(0, 26) }, starText)
-label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 112), Size = UDim2.fromOffset(120, 22), TextSize = 17, TextColor3 = Color3.fromRGB(255, 240, 150), Text = "ROBUX SHOP", ZIndex = 3 }, starHolder)
-local starScale = make("UIScale", {}, starHolder)
-TweenService:Create(starScale, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = 1.1 }):Play()
-TweenService:Create(star, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Rotation = 14 }):Play()
-local starBtn = make("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 5 }, starHolder)
-starBtn.Activated:Connect(function()
-	toggleMenu("deals")
-end)
+do
+	local BROWN, BROWN_D, BROWN_L = Color3.fromRGB(205, 135, 65), Color3.fromRGB(120, 70, 30), Color3.fromRGB(240, 180, 100)
+	local badgeF = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 4), Size = UDim2.fromOffset(104, 104), BackgroundColor3 = Color3.fromRGB(90, 220, 120) }, starHolder)
+	corner(badgeF, 52)
+	make("UIStroke", { Thickness = 4, Color = WHITE }, badgeF)
+	make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 170, 150)), Rotation = 90 }, badgeF)
+	local function bit(x, y, w, h, color, z, round, rot)
+		local f = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h), BackgroundColor3 = color, ZIndex = z, Rotation = rot or 0 }, badgeF)
+		make("UICorner", { CornerRadius = round or UDim.new(0, 6) }, f)
+		return f
+	end
+	-- handle (a hollow ring whose bottom half hides behind the basket)
+	local handle = bit(52, 46, 54, 54, BROWN, 2, UDim.new(0.5, 0))
+	handle.BackgroundTransparency = 1
+	make("UIStroke", { Thickness = 6, Color = BROWN_D }, handle)
+	-- goodies peeking out: a gold coin, a pink gem and a blue sweet
+	stroke(bit(38, 50, 22, 22, Color3.fromRGB(255, 210, 60), 3, UDim.new(0.5, 0)), 2, BROWN_D)
+	stroke(bit(56, 46, 18, 18, Color3.fromRGB(255, 110, 190), 3, UDim.new(0, 4), 45), 2, BROWN_D)
+	stroke(bit(69, 52, 18, 18, Color3.fromRGB(110, 200, 255), 3, UDim.new(0.5, 0)), 2, BROWN_D)
+	-- woven basket body + rim
+	local body = bit(52, 72, 66, 34, BROWN, 4, UDim.new(0, 10))
+	stroke(body, 2.5, BROWN_D)
+	for i = 1, 2 do
+		make("Frame", { Position = UDim2.new(0, 4, 0, 8 + (i - 1) * 11), Size = UDim2.new(1, -8, 0, 3), BackgroundColor3 = BROWN_D, BackgroundTransparency = 0.35, ZIndex = 5 }, body)
+	end
+	for i = 1, 4 do
+		make("Frame", { Position = UDim2.new(i / 5, -1, 0, 3), Size = UDim2.new(0, 2, 1, -6), BackgroundColor3 = BROWN_D, BackgroundTransparency = 0.5, ZIndex = 5 }, body)
+	end
+	stroke(bit(52, 56, 76, 11, BROWN_L, 5, UDim.new(0.5, 0)), 2.5, BROWN_D)
+	-- a pulsing SALE tag
+	local tag = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -8, 0, 12), Size = UDim2.fromOffset(52, 24), BackgroundColor3 = Color3.fromRGB(255, 70, 90), Rotation = 14, ZIndex = 6 }, starHolder)
+	corner(tag, 12)
+	make("UIStroke", { Thickness = 2.5, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, tag)
+	label({ Size = UDim2.fromScale(1, 1), TextSize = 15, Text = "SALE", ZIndex = 7 }, tag)
+	local tagScale = make("UIScale", {}, tag)
+	TweenService:Create(tagScale, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = 1.15 }):Play()
+	local shopL = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(120, 28), TextSize = 26, TextColor3 = Color3.fromRGB(255, 240, 150), Text = "SHOP", ZIndex = 3 }, starHolder)
+	shopL.Font = Enum.Font.LuckiestGuy
+	local sc = make("UIScale", {}, starHolder)
+	TweenService:Create(sc, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = 1.07 }):Play()
+	badgeF.Rotation = -5
+	TweenService:Create(badgeF, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Rotation = 5 }):Play()
+	local btn = make("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 8 }, starHolder)
+	btn.Activated:Connect(function()
+		toggleMenu("deals")
+	end)
+end
 
 -- SPIN icon: sits directly below the Robux star, same center column
 -- spinCountL, spinBanner: these two are updated from the HUD loop far below; left as implicit globals (no "local") so they don't cost a top-level register
 do -- scoped: everything else here is only needed to build/wire the Spin icon once
 	local spinHolder = make("Frame", { Name = "SpinHolder", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 90), Size = UDim2.fromOffset(96, 138), BackgroundTransparency = 1 }, gui)
-	local spinWheelIcon = make("Frame", { Position = UDim2.fromOffset(0, 12), Size = UDim2.fromOffset(96, 96), BackgroundColor3 = Color3.fromRGB(120, 110, 230), ClipsDescendants = true }, spinHolder)
+	-- a real little prize wheel: gold rim with light bulbs, 5 solid pie wedges (the same colours as the big wheel) that slowly turn,
+	-- white dividers, a gold hub showing your spin count, and a red pointer on top
+	local spinWheelIcon = make("Frame", { Position = UDim2.fromOffset(0, 12), Size = UDim2.fromOffset(96, 96), BackgroundColor3 = Color3.fromRGB(255, 200, 60) }, spinHolder)
 	corner(spinWheelIcon, 48)
-	stroke(spinWheelIcon, 4, BLACK)
-	-- thin spokes radiating from the center divide it into 5 pie sectors, just like the real prize wheel
-	for i = 1, 5 do
-		local spoke = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(2, 46), Rotation = (i - 1) * (360 / 5), BackgroundColor3 = WHITE, BackgroundTransparency = 0.45 }, spinWheelIcon)
-	end
-	-- 5 colored badges, one per sector, like the real prize wheel (no text - too small to read at this size)
+	stroke(spinWheelIcon, 3, Color3.fromRGB(120, 60, 10))
+	local face = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(82, 82), BackgroundColor3 = WHITE }, spinWheelIcon)
+	corner(face, 41)
 	local SPIN_SEG_COLORS = { Color3.fromRGB(220, 220, 230), Color3.fromRGB(90, 170, 255), Color3.fromRGB(190, 110, 255), Color3.fromRGB(255, 170, 60), Color3.fromRGB(230, 60, 70) }
-	for i = 1, 5 do
-		local a = math.rad((i - 0.5) * (360 / 5) - 90)
-		local dot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, math.cos(a) * 29, 0.5, math.sin(a) * 29), Size = UDim2.fromOffset(24, 24), BackgroundColor3 = SPIN_SEG_COLORS[i] }, spinWheelIcon)
-		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, dot)
-		stroke(dot, 2, BLACK)
+	local RAYS = 12 -- thin overlapping rays fill each wedge solid
+	for seg = 1, 5 do
+		for k = 0, RAYS - 1 do
+			make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(8, 41), Rotation = (seg - 1) * 72 + (k + 0.5) * (72 / RAYS), BackgroundColor3 = SPIN_SEG_COLORS[seg], BorderSizePixel = 0 }, face)
+		end
+		make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(2, 41), Rotation = (seg - 1) * 72, BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2 }, face)
 	end
-	-- little diamond pointer at the top, like the real wheel
-	local spinPointer = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 0), Size = UDim2.fromOffset(20, 20), Rotation = 45, BackgroundColor3 = Color3.fromRGB(255, 200, 60) }, spinWheelIcon)
-	stroke(spinPointer, 2, BLACK)
-	local spinHub = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.4, 0.4), BackgroundColor3 = Color3.fromRGB(255, 200, 60) }, spinWheelIcon)
+	TweenService:Create(face, TweenInfo.new(9, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Rotation = 360 }):Play()
+	for i = 1, 10 do -- light bulbs around the rim, half of them twinkling
+		local a = math.rad(i * 36)
+		local bulb = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, math.cos(a) * 44.5, 0.5, math.sin(a) * 44.5), Size = UDim2.fromOffset(6, 6), BackgroundColor3 = Color3.fromRGB(255, 255, 220), ZIndex = 3 }, spinWheelIcon)
+		corner(bulb, 3)
+		if i % 2 == 0 then
+			TweenService:Create(bulb, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { BackgroundTransparency = 0.8 }):Play()
+		end
+	end
+	local pointer = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 2), Size = UDim2.fromOffset(28, 26), TextScaled = true, TextColor3 = Color3.fromRGB(255, 60, 80), Text = "▼", ZIndex = 5 }, spinWheelIcon)
+	pointer:FindFirstChildOfClass("UIStroke").Color = WHITE
+	local spinHub = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.36, 0.36), BackgroundColor3 = Color3.fromRGB(255, 200, 60), ZIndex = 4 }, spinWheelIcon)
 	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, spinHub)
 	stroke(spinHub, 2.5, BLACK)
 	spinCountL = label({ Size = UDim2.fromScale(1, 1), TextSize = 22, TextColor3 = Color3.fromRGB(120, 70, 0), Text = "0" }, spinHub)
@@ -4998,22 +5040,31 @@ do
 		folder.Parent = workspace
 		info.Folder = folder
 		info.Seg = {}
-		local foam = info.Color:Lerp(WHITE, 0.75)
+		local foam = info.Color:Lerp(WHITE, 0.8)
+		local water = { Material = Enum.Material.SmoothPlastic, Reflectance = 0.12 }
+		-- each slice of the wave is a real breaking-wave profile (seen from the side):
+		--   Back  = a long ramp of water rising from behind up to the crest
+		--   Fill  = the thick body of the wave (exactly where the deadly slab is)
+		--   Face  = the steep front face, leaning forward as the wave starts to break
+		--   Shade = the dark hollow ("barrel") tucked under the curl
+		--   Lip   = the curling white foam lip on top, Foam = a whitecap riding behind it
 		for i = 1, SEGMENTS do
 			info.Seg[i] = {
-				Body = newPart({ Name = "Water", Material = Enum.Material.Neon, Color = info.Color, Transparency = 0.32 }, folder),
-				Foam = newPart({ Name = "Foam", Material = Enum.Material.Neon, Color = foam, Transparency = 0.25 }, folder), -- a whitecap band near the peak
-				Crest = newPart({ Name = "Crest", Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon, Color = foam, Transparency = 0.12 }, folder),
-				Curl = newPart({ Name = "Curl", Shape = Enum.PartType.Ball, Material = Enum.Material.Neon, Color = foam, Transparency = 0.15 }, folder),
+				Back = newPart({ Name = "WaveBack", Shape = Enum.PartType.Wedge, Material = water.Material, Reflectance = water.Reflectance, Color = info.Color, Transparency = 0.18 }, folder),
+				Fill = newPart({ Name = "WaveBody", Material = water.Material, Reflectance = water.Reflectance, Color = info.Color:Lerp(BLACK, 0.12), Transparency = 0.12 }, folder),
+				Face = newPart({ Name = "WaveFace", Material = water.Material, Reflectance = 0.2, Color = info.Color:Lerp(WHITE, 0.15), Transparency = 0.1 }, folder),
+				Shade = newPart({ Name = "WaveBarrel", Shape = Enum.PartType.Cylinder, Material = water.Material, Color = info.Color:Lerp(BLACK, 0.4), Transparency = 0.3 }, folder),
+				Lip = newPart({ Name = "WaveLip", Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon, Color = foam, Transparency = 0.05 }, folder),
+				Foam = newPart({ Name = "Whitecap", Shape = Enum.PartType.Ball, Material = Enum.Material.Neon, Color = foam, Transparency = 0.15 }, folder),
 			}
 		end
 		-- glow + spray from the middle of the wave
-		local mid = info.Seg[SEGMENTS // 2].Crest
+		local mid = info.Seg[SEGMENTS // 2].Lip
 		local light = Instance.new("PointLight")
 		light.Color = info.Color
 		light.Range = 60
 		light.Brightness = 2.5
-		light.Parent = info.Seg[SEGMENTS // 2].Body
+		light.Parent = info.Seg[SEGMENTS // 2].Fill
 		local spray = Instance.new("ParticleEmitter")
 		spray.Texture = "rbxasset://textures/particles/sparkles_main.dds"
 		spray.Rate = 35
@@ -5063,30 +5114,44 @@ do
 					m.Transparency = math.max(info.SlabT, 0.78) -- the slab fades back so the rippling water on top of it shows
 					local W, thick, H = info.Width, info.Thick, info.Height
 					local segW = W / SEGMENTS
-					local cr = math.clamp(thick * 0.65, 1.5, 8) -- crest thickness
+					local sw = segW * 1.04
+					local f = x - thick / 2 -- the FRONT (deadly) edge of the slab; the wave travels toward -X
+					local ALONG_Z = CFrame.Angles(0, math.rad(90), 0) -- turns a cylinder so it runs along the wave's width
 					for i, s in ipairs(info.Seg) do
 						local z = zOff + (-W / 2 + (i - 0.5) * segW)
 						local ph = t * 3.1 + i * 0.8
 						local hf = 0.86 + 0.14 * math.sin(ph) -- the top edge ripples along the wave (never above the real height)
 						local h = H * hf
-						local lean = math.rad(9 + hf * 10) -- the top leans forward (toward the direction of travel) more where the wave is taller - a real wave curls as it crests
+						local over = math.min(h * 0.22, 1.5 + thick * 0.35) -- how far the curling lip hangs out over the front
+						local lean = math.atan(over / h)
+						local cr = math.clamp(h * 0.14, 0.6, 5) -- foam lip radius
+						local tf = math.max(0.8, thick * 0.35) -- front face thickness
+						local L = math.max(thick * 1.5, h * 1.1) -- length of the back ramp
 						if info.Rainbow then -- the colour itself travels along the wave's length, cycling over time
 							local hue = (t * 0.25 + i * 0.09) % 1
 							local col = Color3.fromHSV(hue, 0.85, 1)
-							s.Body.Color = col
-							s.Crest.Color = col:Lerp(WHITE, 0.6)
-							s.Curl.Color = col:Lerp(WHITE, 0.6)
-							s.Foam.Color = col:Lerp(WHITE, 0.6)
+							s.Back.Color = col
+							s.Fill.Color = col:Lerp(BLACK, 0.12)
+							s.Face.Color = col:Lerp(WHITE, 0.15)
+							s.Shade.Color = col:Lerp(BLACK, 0.4)
+							s.Lip.Color = col:Lerp(WHITE, 0.7)
+							s.Foam.Color = col:Lerp(WHITE, 0.7)
 						end
-						s.Body.Size = Vector3.new(thick, h, segW * 1.04)
-						s.Body.CFrame = CFrame.new(x, h / 2, z) * CFrame.Angles(0, 0, lean)
-						s.Foam.Size = Vector3.new(thick * 0.9, h * 0.22, segW * 1.02)
-						s.Foam.CFrame = CFrame.new(x, h * 0.92, z) * CFrame.Angles(0, 0, lean)
-						s.Crest.Size = Vector3.new(segW * 1.06, cr, cr)
-						s.Crest.CFrame = CFrame.new(x - thick * 0.12 - h * math.sin(lean) * 0.5, h - cr * 0.15, z) * CFrame.Angles(0, math.rad(90), 0)
-						local lift = math.sin(ph * 1.3 + 1.2) * cr * 0.25
-						s.Curl.Size = Vector3.new(cr * 1.15, cr * 1.15, cr * 1.15)
-						s.Curl.Position = Vector3.new(x - thick * 0.55 - h * math.sin(lean) * 0.6 - cr * 0.15, h - cr * 0.5 + lift, z)
+						s.Fill.Size = Vector3.new(thick, h * 0.85, sw)
+						s.Fill.CFrame = CFrame.new(f + thick / 2, h * 0.425, z)
+						-- wedge: tall end toward the crest (front), sloping down to the water behind
+						local bx = f + thick + L / 2
+						s.Back.Size = Vector3.new(sw, h * 0.85, L)
+						s.Back.CFrame = CFrame.lookAt(Vector3.new(bx, h * 0.425, z), Vector3.new(bx + 1, h * 0.425, z))
+						s.Face.Size = Vector3.new(tf, h, sw)
+						s.Face.CFrame = CFrame.new(f + tf / 2 - (h / 2) * math.sin(lean), (h / 2) * math.cos(lean), z) * CFrame.Angles(0, 0, lean)
+						s.Shade.Size = Vector3.new(sw, cr * 2.2, cr * 2.2)
+						s.Shade.CFrame = CFrame.new(f - over * 0.3 + cr * 0.9, h - cr * 1.7, z) * ALONG_Z
+						local bob = math.sin(ph * 1.3 + 1.2) * cr * 0.12
+						s.Lip.Size = Vector3.new(sw * 1.02, cr * 2, cr * 2)
+						s.Lip.CFrame = CFrame.new(f - over + cr * 0.7, h - cr + bob, z) * ALONG_Z
+						s.Foam.Size = Vector3.new(cr * 1.8, cr * 1.8, cr * 1.8)
+						s.Foam.Position = Vector3.new(f + cr * 1.3, h - cr * 0.95 - bob, z)
 					end
 				end
 			end

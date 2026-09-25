@@ -3943,11 +3943,16 @@ do
 		hm.MeshType = Enum.MeshType.Head
 		hm.Scale = V(1.25, 1.25, 1.25)
 		hm.Parent = head
-		local face = Instance.new("Decal")
-		face.Name = "face"
-		face.Texture = "rbxasset://textures/face.png"
-		face.Face = Enum.NormalId.Front
-		face.Parent = head
+		-- a cartoon face built from parts (big shiny eyes, rosy cheeks, a wide smile) to match the Goobers' style
+		for _, s in ipairs({ -1, 1 }) do
+			ball("EyeWhite", 0.36, CF(s * 0.3, 1.62, -0.56), Color3.fromRGB(255, 255, 255)).Size = V(0.34, 0.42, 0.14)
+			ball("Pupil", 0.2, CF(s * 0.3, 1.6, -0.63), dark).Size = V(0.2, 0.26, 0.08)
+			ball("EyeShine", 0.08, CF(s * 0.3 + 0.05, 1.68, -0.68), Color3.fromRGB(255, 255, 255), NEON)
+			ball("Cheek", 0.2, CF(s * 0.55, 1.36, -0.5), Color3.fromRGB(255, 150, 175)).Size = V(0.26, 0.13, 0.06)
+			bp("Brow", V(0.3, 0.07, 0.06), CF(s * 0.3, 1.92, -0.58) * rz(s * -8), hair)
+		end
+		ball("Smile", 0.5, CF(0, 1.28, -0.58), Color3.fromRGB(90, 30, 50)).Size = V(0.52, 0.16, 0.08)
+		ball("Tongue", 0.2, CF(0, 1.24, -0.61), Color3.fromRGB(255, 120, 140)).Size = V(0.22, 0.08, 0.05)
 		bp("Left Arm", V(1, 2, 1), CF(-1.5, 0, 0), look.Sleeve or look.Skin)
 		bp("Right Arm", V(1, 2, 1), CF(1.5, 0, 0), look.Sleeve or look.Skin)
 		bp("Left Leg", V(1, 2, 1), CF(-0.5, -2, 0), look.Pants)
@@ -4326,14 +4331,15 @@ do
 		part({ Name = "PetBackWall", Size = Vector3.new(1, 22, span + 18), Position = Vector3.new(sx + 16.5, 11.5, zc), Color = Color3.fromRGB(70, 48, 110) }, World)
 		local sign = part({ Name = "PetSign", Size = Vector3.new(1.5, 7, 54), Position = Vector3.new(sx + 15.6, 21, zc), Color = Color3.fromRGB(35, 30, 60) }, World)
 		billboard(sign, "PET EGGS", Color3.fromRGB(255, 190, 235), Vector3.new(0, 0.6, 0), UDim2.fromOffset(520, 90), 220)
-		billboard(sign, "COMMON  >>  BEST", Color3.fromRGB(215, 225, 255), Vector3.new(0, -2.4, 0), UDim2.fromOffset(420, 34), 220)
+		billboard(sign, "🥚 COMMON  >>  BEST 👑", Color3.fromRGB(215, 225, 255), Vector3.new(0, -2.4, 0), UDim2.fromOffset(420, 34), 220)
 
 		for i, egg in ipairs(Config.Eggs) do
 			local ez = zc - span / 2 + (i - 1) * step
 			local ex = sx + 6
 			local h = 3 + (i - 1) * 0.45 -- the pedestals climb, egg by egg
 			local grow = 1 + (i - 1) * 0.12
-			part({ Name = "EggPedestal", Shape = Enum.PartType.Cylinder, Size = Vector3.new(h, 8, 8), CFrame = CFrame.new(ex, 1 + h / 2, ez) * UP, Color = Color3.fromRGB(220, 220, 235) }, World)
+			part({ Name = "EggPedestal", Shape = Enum.PartType.Cylinder, Size = Vector3.new(h, 8, 8), CFrame = CFrame.new(ex, 1 + h / 2, ez) * UP, Color = egg.Color:Lerp(Color3.fromRGB(255, 255, 255), 0.55) }, World)
+			part({ Name = "EggPedestalRim", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.5, 8.6, 8.6), CFrame = CFrame.new(ex, 1 + h, ez) * UP, Color = Color3.fromRGB(255, 205, 70), Material = Enum.Material.Metal, CanCollide = false }, World)
 			part({ Name = "EggRing", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 9.6, 9.6), CFrame = CFrame.new(ex, 1.15, ez) * UP, Color = egg.Color, Material = Enum.Material.Neon, CanCollide = false }, World)
 			local model = Instance.new("Model")
 			model.Name = egg.Id .. "Egg"
@@ -4347,7 +4353,10 @@ do
 			local mesh = Instance.new("SpecialMesh")
 			mesh.MeshType = Enum.MeshType.Sphere
 			mesh.Parent = body
+			body.Reflectance = 0.15 -- glossy shell
 			decorateEgg(model, body, egg, grow)
+			-- a soft white highlight on the shell, like light catching a shiny egg
+			part({ Name = "EggShine", Shape = Enum.PartType.Ball, Size = Vector3.new(1.1, 1.6, 0.6) * grow, Position = body.Position + Vector3.new(-1.6 * grow, 1.4 * grow, -1.2 * grow), Color = Color3.fromRGB(255, 255, 255), Material = Enum.Material.Neon, Transparency = 0.35, CanCollide = false }, model)
 			model.PrimaryPart = body
 			model:SetAttribute("HX", body.Position.X)
 			model:SetAttribute("HY", body.Position.Y)
@@ -4355,7 +4364,41 @@ do
 			model:SetAttribute("Yaw", 0)
 			CollectionService:AddTag(model, "BobModel")
 			model.Parent = World
-			billboard(body, egg.Label .. "\n$" .. Config.Format(egg.Price), egg.Color:Lerp(WHITE, 0.4), Vector3.new(0, 5.2 * grow, 0), UDim2.fromOffset(200, 60), 28)
+			do -- price tag: a rounded candy panel with the egg's name and a big green price
+				local tag = Instance.new("BillboardGui")
+				tag.Size = UDim2.fromOffset(190, 74)
+				tag.StudsOffset = Vector3.new(0, 5.4 * grow, 0)
+				tag.AlwaysOnTop = true
+				tag.MaxDistance = 40
+				tag.Parent = body
+				local bg = Instance.new("Frame")
+				bg.Size = UDim2.fromScale(1, 1)
+				bg.BackgroundColor3 = egg.Color:Lerp(Color3.fromRGB(40, 20, 70), 0.55)
+				bg.BackgroundTransparency = 0.1
+				bg.Parent = tag
+				Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 16)
+				local ring = Instance.new("UIStroke")
+				ring.Thickness = 3
+				ring.Color = egg.Color:Lerp(WHITE, 0.3)
+				ring.Parent = bg
+				local function line(text, y, h, color, font)
+					local l = Instance.new("TextLabel")
+					l.BackgroundTransparency = 1
+					l.Position = UDim2.new(0, 6, y, 0)
+					l.Size = UDim2.new(1, -12, h, 0)
+					l.Font = font
+					l.TextScaled = true
+					l.TextColor3 = color
+					l.Text = text
+					l.Parent = bg
+					local st = Instance.new("UIStroke")
+					st.Thickness = 2
+					st.Color = Color3.fromRGB(30, 12, 50)
+					st.Parent = l
+				end
+				line(egg.Label, 0.06, 0.42, WHITE, Enum.Font.LuckiestGuy)
+				line("$" .. Config.Format(egg.Price), 0.5, 0.42, Color3.fromRGB(120, 255, 140), Enum.Font.FredokaOne)
+			end
 			local light = Instance.new("PointLight")
 			light.Color = egg.Color
 			light.Range = 12 + i

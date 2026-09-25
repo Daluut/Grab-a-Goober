@@ -64,6 +64,7 @@ function Creatures.SpecForGoober(id, mutation)
 		-- rarer = bigger, plus a small per-Goober variation
 		Scale = (Config.RarityScale[def.Rarity] or 1) * (0.92 + 0.16 * nameHash(id)),
 		Mutation = mutation or "Normal",
+		Seed = nameHash(id), -- picks this species' face (mouth style, eyebrows) so every Goober has its own personality
 		Custom = findCustom("Goobers", id),
 	}
 end
@@ -71,12 +72,12 @@ end
 function Creatures.SpecForPet(id)
 	local def = Config.PetById[id]
 	local rar = Config.Rarities[def.Rarity]
-	return { Style = def.Style, Color = def.Color, Rank = rar.Rank, RarityColor = rar.Color, Scale = 1, Mutation = "Normal", Custom = findCustom("Pets", id) }
+	return { Style = def.Style, Color = def.Color, Rank = rar.Rank, RarityColor = rar.Color, Scale = 1, Mutation = "Normal", Seed = nameHash(id), Custom = findCustom("Pets", id) }
 end
 
 -- a boss (cfg comes from Config.BossFor)
 function Creatures.SpecForBoss(cfg)
-	return { Style = cfg.Style, Color = cfg.Color, Rank = 6, RarityColor = cfg.Color, Scale = 1, Mutation = "Normal", Custom = findCustom("Bosses", cfg.Name) }
+	return { Style = cfg.Style, Color = cfg.Color, Rank = 6, RarityColor = cfg.Color, Scale = 1, Mutation = "Normal", Seed = nameHash(cfg.Name or "Boss"), Custom = findCustom("Bosses", cfg.Name) }
 end
 
 -- how tall the body is (so callers can stand it on the ground)
@@ -182,6 +183,9 @@ function Creatures.Build(spec, size, cf, anchored, parent)
 	body.Massless = true
 	body.Color = col
 	body.Material = spec.Material or Enum.Material.SmoothPlastic
+	if not spec.Material then
+		body.Reflectance = 0.08 -- a soft glossy, toy-like sheen
+	end
 	body.TopSurface = Enum.SurfaceType.Smooth
 	body.BottomSurface = Enum.SurfaceType.Smooth
 	if st.Ghost then
@@ -361,6 +365,37 @@ function Creatures.Build(spec, size, cf, anchored, parent)
 		add("Halo", "cyl", V(S * 0.09, S * 0.62, S * 0.62), CF(0, S * 0.72 + dy, 0) * UP, rcol, Enum.Material.Neon, 0.1)
 	end
 
+	-- ===== LITTLE FEET (not on floaty styles) =====
+	if not (st.Ghost or st.Tentacles or st.Wings or boxy) then
+		for _, s in ipairs({ -1, 1 }) do
+			add("Foot", "ball", V(S * 0.26, S * 0.13, S * 0.3), CF(s * X(S * 0.21), -hy + S * 0.05, -S * 0.06), dark)
+		end
+	end
+
+	-- ===== EVENT MUTATION FLAIR (Galaxy / Chocolate / Toxic look special, not just recoloured) =====
+	if spec.Mutation == "Galaxy" then -- twinkling star speckles all over
+		local starCols = { WHITE, Color3.fromRGB(255, 170, 240), Color3.fromRGB(150, 220, 255) }
+		for i = 1, 7 do
+			local a = i * 2.4
+			local y = (((i * 37) % 10) / 10 - 0.5) * hy * 1.2
+			local k = math.sqrt(math.max(0.05, 1 - (y / hy) ^ 2))
+			add("Star", "ball", V(S * 0.07, S * 0.07, S * 0.07), CF(math.cos(a) * hx * k, y, math.sin(a) * hz * k), starCols[i % 3 + 1], Enum.Material.Neon)
+		end
+	elseif spec.Mutation == "Chocolate" then -- a melty chocolate topping with drips
+		local choc = col:Lerp(BLACK, 0.35)
+		add("ChocoTop", "ball", V(hx * 1.7, S * 0.26, hz * 1.7), CF(0, hy - S * 0.1, 0), choc)
+		for i, x in ipairs({ -0.5, 0.1, 0.55 }) do
+			local len = S * (0.2 + 0.08 * i)
+			add("ChocoDrip", "ball", V(S * 0.1, len, S * 0.1), CF(x * hx, hy - S * 0.12 - len * 0.4, surf(x * hx, hy * 0.7) + S * 0.03), choc)
+		end
+	elseif spec.Mutation == "Toxic" then -- glowing bubbles floating off it
+		local goo = Color3.fromRGB(170, 255, 90)
+		for i, o in ipairs({ { -0.35, 0.62 }, { 0.3, 0.78 }, { 0.05, 0.96 } }) do
+			local r = S * (0.16 - i * 0.03)
+			add("ToxicBubble", "ball", V(r, r, r), CF(o[1] * S, o[2] * S + dy, S * 0.1), goo, Enum.Material.Neon, 0.25)
+		end
+	end
+
 	-- ===== FACE =====
 	if spec.Image then
 		local d = Instance.new("Decal")
@@ -379,21 +414,45 @@ function Creatures.Build(spec, size, cf, anchored, parent)
 		end
 		add("Grille", "block", V(S * 0.3, S * 0.07, S * 0.05), CF(0, -S * 0.15, -S * 0.46), Color3.fromRGB(40, 45, 60))
 	else
+		local seed = spec.Seed or 0.5
+		local INK = Color3.fromRGB(28, 20, 40)
 		for _, s in ipairs({ -1, 1 }) do
-			local ex, ey = s * S * 0.2 * sx, S * 0.14
-			local eyeCol = st.Ghost and Color3.fromRGB(25, 25, 40) or WHITE
-			add("Eye", "ball", V(S * 0.26, S * 0.3, S * 0.12), CF(ex, ey, surf(ex, ey) + S * 0.018), eyeCol)
-			if not st.Ghost then
-				add("Pupil", "ball", V(S * 0.13, S * 0.16, S * 0.08), CF(ex, ey - S * 0.01, surf(ex, ey) - S * 0.035), Color3.fromRGB(20, 20, 30))
-				add("Shine", "ball", V(S * 0.05, S * 0.05, S * 0.03), CF(ex + S * 0.03, ey + S * 0.05, surf(ex, ey) - S * 0.045), WHITE)
-				local cx, cy = s * S * 0.32 * sx, -S * 0.04
-				add("Cheek", "ball", V(S * 0.14, S * 0.08, S * 0.04), CF(cx, cy, surf(cx, cy) + S * 0.005), PINK, Enum.Material.Neon, 0.25)
+			local ex, ey = s * S * 0.2 * sx, S * 0.15
+			local ez = surf(ex, ey)
+			if st.Ghost then
+				add("Eye", "ball", V(S * 0.24, S * 0.3, S * 0.1), CF(ex, ey, ez + S * 0.018), Color3.fromRGB(25, 25, 40))
+			else
+				-- big sparkly cartoon eyes: dark rim, white, huge pupil, two shines
+				add("EyeRim", "ball", V(S * 0.33, S * 0.37, S * 0.1), CF(ex, ey, ez + S * 0.03), INK)
+				add("Eye", "ball", V(S * 0.29, S * 0.33, S * 0.12), CF(ex, ey, ez + S * 0.012), WHITE)
+				add("Pupil", "ball", V(S * 0.17, S * 0.21, S * 0.08), CF(ex + s * S * 0.012, ey - S * 0.02, ez - S * 0.04), INK)
+				add("Shine", "ball", V(S * 0.07, S * 0.07, S * 0.03), CF(ex + S * 0.035, ey + S * 0.045, ez - S * 0.07), WHITE, Enum.Material.Neon)
+				add("Shine2", "ball", V(S * 0.035, S * 0.035, S * 0.02), CF(ex - S * 0.035, ey - S * 0.06, ez - S * 0.07), WHITE, Enum.Material.Neon)
+				local cx, cy = s * S * 0.33 * sx, -S * 0.05
+				add("Cheek", "ball", V(S * 0.15, S * 0.08, S * 0.04), CF(cx, cy, surf(cx, cy) + S * 0.005), PINK, Enum.Material.Neon, 0.2)
+				if seed > 0.7 then -- goofy tilted eyebrows on some species
+					add("Brow", "block", V(S * 0.2, S * 0.045, S * 0.04), CF(ex, ey + S * 0.25, surf(ex, ey + S * 0.25) - S * 0.02) * rz(s * -14), INK)
+				end
 			end
 		end
 		if st.Beak then
 			add("Beak", "ball", V(S * 0.2, S * 0.13, S * 0.18), CF(0, -S * 0.02, surf(0, -S * 0.02) - S * 0.02), ORANGE)
 		else
-			add("Mouth", "ball", V(S * 0.2, S * 0.09, S * 0.05), CF(0, -S * 0.1, surf(0, -S * 0.1) - S * 0.005), Color3.fromRGB(70, 20, 45))
+			local my = -S * 0.12
+			local mz = surf(0, my)
+			local style = math.floor(seed * 4) -- 0..3: every species gets one of four mouths
+			if style == 0 then -- big happy open mouth with a tongue
+				add("Mouth", "ball", V(S * 0.26, S * 0.16, S * 0.05), CF(0, my, mz - S * 0.005), Color3.fromRGB(70, 20, 45))
+				add("Tongue", "ball", V(S * 0.14, S * 0.07, S * 0.04), CF(0, my - S * 0.04, mz - S * 0.02), Color3.fromRGB(255, 110, 140))
+			elseif style == 1 then -- toothy grin
+				add("Mouth", "ball", V(S * 0.3, S * 0.13, S * 0.05), CF(0, my, mz - S * 0.005), Color3.fromRGB(70, 20, 45))
+				add("Teeth", "block", V(S * 0.18, S * 0.045, S * 0.03), CF(0, my + S * 0.035, mz - S * 0.025), WHITE)
+			elseif style == 2 then -- small cute smile
+				add("Mouth", "ball", V(S * 0.18, S * 0.08, S * 0.05), CF(0, my + S * 0.01, mz - S * 0.005), Color3.fromRGB(70, 20, 45))
+			else -- silly: tongue sticking out to the side
+				add("Mouth", "ball", V(S * 0.2, S * 0.09, S * 0.05), CF(0, my, mz - S * 0.005), Color3.fromRGB(70, 20, 45))
+				add("Tongue", "ball", V(S * 0.09, S * 0.13, S * 0.06), CF(S * 0.05, my - S * 0.07, mz - S * 0.03) * rz(-15), Color3.fromRGB(255, 110, 140))
+			end
 		end
 	end
 	if st.Nose then
