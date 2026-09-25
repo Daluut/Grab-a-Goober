@@ -170,8 +170,8 @@ Config.WaveTypes = {
 }
 
 Config.LuckyBoxCost = 2000
-Config.LockCost = 1000
-Config.LockSeconds = 1800 -- 30 minutes
+Config.LockCost = 25000 -- (was 1000)
+Config.LockSeconds = 30 -- 30 seconds (was 30 minutes)
 Config.SuperLockSeconds = 300
 -- (Config.CashPackMin removed along with the Cash Pack product)
 -- DONATION THANK-YOUS: the message gets more excited the more someone has donated in TOTAL (not just this purchase).
