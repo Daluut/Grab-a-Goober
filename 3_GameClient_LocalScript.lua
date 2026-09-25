@@ -68,7 +68,7 @@ local function label(props, parent)
 	props.Font = FONT
 	props.TextColor3 = props.TextColor3 or WHITE
 	local l = make("TextLabel", props, parent)
-	stroke(l, 2.5)
+	stroke(l, 2.5, Color3.fromRGB(40, 14, 70)) -- deep grape outline: softer and more cartoony than pure black
 	return l
 end
 
@@ -80,15 +80,19 @@ local function makeButton(props, parent, color)
 	local btn = make("TextButton", props, parent)
 	make("UICorner", { CornerRadius = UDim.new(0.34, 0) }, btn)
 	stroke(btn, 2.5) -- outlines the text
-	make("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 170, 170)),
+	make("UIGradient", { -- candy shading: bright top half, shaded bottom, like a jelly bean
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 240)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 150, 165)),
+		}),
 		Rotation = 90,
 	}, btn)
 	-- bubble outline ring + glossy highlight
 	local ring = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Active = false }, btn)
 	make("UICorner", { CornerRadius = UDim.new(0.34, 0) }, ring)
 	make("UIStroke", { Thickness = 3.5, Color = color:Lerp(BLACK, 0.55), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)
-	local gloss = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.new(0.82, 0, 0.22, 0), BackgroundColor3 = WHITE, BackgroundTransparency = 0.78, Active = false }, btn)
+	local gloss = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.new(0.84, 0, 0.26, 0), BackgroundColor3 = WHITE, BackgroundTransparency = 0.7, Active = false }, btn)
 	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, gloss)
 	local sc = make("UIScale", {}, btn)
 	local function tw(s)
@@ -114,12 +118,16 @@ end
 
 local function panel(props, parent)
 	local f = make("Frame", props, parent)
-	f.BackgroundColor3 = Color3.fromRGB(88, 90, 208)
+	f.BackgroundColor3 = Color3.fromRGB(120, 86, 240) -- grape-soda purple
 	f.BackgroundTransparency = 0.03
-	corner(f, 20)
-	make("UIStroke", { Thickness = 3, Color = WHITE, Transparency = 0.1 }, f)
-	make("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(190, 178, 245)),
+	corner(f, 24)
+	make("UIStroke", { Thickness = 3.5, Color = WHITE, Transparency = 0.05 }, f)
+	make("UIGradient", { -- top-to-bottom: bright, then a bubblegum-pink tint at the bottom
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(225, 215, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 175, 225)),
+		}),
 		Rotation = 90,
 	}, f)
 	return f
@@ -980,6 +988,21 @@ local bagChip = statChip(Color3.fromRGB(255, 170, 60), 76)
 local baseChip = statChip(Color3.fromRGB(110, 235, 130), 88)
 local rebChip = statChip(Color3.fromRGB(230, 130, 255), 58)
 
+do
+	local cashPop = make("UIScale", {}, cashL)
+	local lastCash = player:GetAttribute("Cash") or 0
+	player:GetAttributeChangedSignal("Cash"):Connect(function()
+		local now = player:GetAttribute("Cash") or 0
+		if now > lastCash then
+			cashPop.Scale = 1.14
+			tween(cashPop, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+		end
+		lastCash = now
+	end)
+	coin.Rotation = -8
+	TweenService:Create(coin, TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Rotation = 8 }):Play()
+end
+
 -- the cash number rolls up smoothly instead of jumping
 local displayCash = 0
 RunService.RenderStepped:Connect(function(dt)
@@ -1064,6 +1087,53 @@ for _, info in ipairs({
 		chip.MouseLeave:Connect(hideTip)
 	end
 	boostChips[kind] = { Chip = chip, Stroke = chStroke, Label = chip.Label, Col = col }
+end
+
+-- MUTATION PERK chips: one per event mutation (Galaxy / Chocolate / Toxic) you have placed in your base. Same pill style.
+do
+	local PERK_ICON = { Galaxy = "🌌", Chocolate = "🍫", Toxic = "☢️" }
+	local chips = {}
+	for i, name in ipairs(Config.EventMutations or {}) do
+		local def = Config.Mutations[name]
+		local col = def.Color
+		local chip = make("TextButton", { Name = "Perk" .. i, Size = UDim2.fromOffset(170, 34), BackgroundColor3 = col:Lerp(BLACK, 0.35), Text = "", Visible = false, AutoButtonColor = false }, boostRow)
+		corner(chip, 17)
+		stroke(chip, 2.5, col)
+		label({ Size = UDim2.fromScale(1, 1), TextSize = 15, Text = (PERK_ICON[name] or "✨") .. " " .. name:upper() .. " PERK" }, chip)
+		local function showTip()
+			boostTip.Position = UDim2.new(0, chip.AbsolutePosition.X - 6, 0, chip.AbsolutePosition.Y - 6)
+			boostTip.Title.Text = name .. " Goober placed"
+			boostTip.Title.TextColor3 = col
+			boostTip.Desc.Text = def.PerkText or ""
+			boostTip.Visible = true
+		end
+		if isTouch then
+			chip.Activated:Connect(function()
+				if boostTip.Visible then
+					boostTip.Visible = false
+				else
+					showTip()
+				end
+			end)
+		else
+			chip.MouseEnter:Connect(showTip)
+			chip.MouseLeave:Connect(function()
+				boostTip.Visible = false
+			end)
+		end
+		chips[name] = chip
+	end
+	local function refreshPerks()
+		local have = {}
+		for n in (player:GetAttribute("MutPerks") or ""):gmatch("[^,]+") do
+			have[n] = true
+		end
+		for name, chip in pairs(chips) do
+			chip.Visible = have[name] == true
+		end
+	end
+	player:GetAttributeChangedSignal("MutPerks"):Connect(refreshPerks)
+	refreshPerks()
 end
 
 -- Base Lock chip: same style as the potion chips, but its own simple tooltip (it isn't a Gus shop item)
@@ -1171,6 +1241,7 @@ do
 	}, gui)
 	local announceScale = make("UIScale", {}, announceFrame)
 	local announceTitle = label({ Size = UDim2.new(1, 0, 0.62, 0), TextScaled = true, Text = "", ZIndex = 8 }, announceFrame)
+	announceTitle.Font = Enum.Font.LuckiestGuy
 	announceTitle:FindFirstChildOfClass("UIStroke").Thickness = 5
 	local announceSub = label({ Position = UDim2.fromScale(0, 0.64), Size = UDim2.new(1, 0, 0.32, 0), TextScaled = true, Text = "", ZIndex = 8 }, announceFrame)
 	announceSub:FindFirstChildOfClass("UIStroke").Thickness = 3
@@ -1228,7 +1299,7 @@ local activeMenu = nil
 -- dark backdrop behind every window (tap it to close)
 local backdrop = make("TextButton", {
 	Size = UDim2.fromScale(1, 1),
-	BackgroundColor3 = BLACK,
+	BackgroundColor3 = Color3.fromRGB(30, 10, 60),
 	BackgroundTransparency = 1,
 	Text = "",
 	AutoButtonColor = false,
@@ -1299,16 +1370,32 @@ local function modal(name, maxW, maxH, title, accent)
 	}, gui)
 	make("UISizeConstraint", { MaxSize = Vector2.new(maxW, maxH) }, f)
 	make("UIScale", { Name = "PopScale" }, f)
-	f:FindFirstChildOfClass("UIStroke").Color = accent
-	f:FindFirstChildOfClass("UIStroke").Thickness = 5
-	f.BackgroundColor3 = Color3.fromRGB(88, 90, 208):Lerp(accent, 0.3) -- every window has its own colour
+	local fStroke = f:FindFirstChildOfClass("UIStroke")
+	fStroke.Color = WHITE
+	fStroke.Thickness = 6
+	do -- a candy-rainbow border (tinted toward the window's own colour) that slowly spins around the window
+		local rainbow = make("UIGradient", {
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, accent),
+				ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 120, 210)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 235, 120)),
+				ColorSequenceKeypoint.new(0.75, Color3.fromRGB(120, 230, 255)),
+				ColorSequenceKeypoint.new(1, accent),
+			}),
+		}, fStroke)
+		TweenService:Create(rainbow, TweenInfo.new(6, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Rotation = 360 }):Play()
+	end
+	f.BackgroundColor3 = Color3.fromRGB(120, 86, 240):Lerp(accent, 0.3) -- every window has its own colour
 	bubbleDeco(f)
 	local hdr = make("Frame", { Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 0, 52), BackgroundColor3 = accent:Lerp(Color3.fromRGB(90, 70, 190), 0.25) }, f)
 	corner(hdr, 26)
 	make("UIGradient", { Color = ColorSequence.new(WHITE, Color3.fromRGB(190, 185, 215)), Rotation = 90 }, hdr)
 	local hdrGloss = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 4), Size = UDim2.new(0.94, 0, 0.26, 0), BackgroundColor3 = WHITE, BackgroundTransparency = 0.72, Active = false }, hdr)
 	corner(hdrGloss, 8)
-	local titleL = label({ Size = UDim2.new(1, -70, 0, 50), Position = UDim2.fromOffset(20, 7), Text = title, TextSize = 32, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Left }, f)
+	local titleL = label({ Size = UDim2.new(1, -76, 0, 42), Position = UDim2.fromOffset(20, 11), Text = title, TextScaled = true, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Left }, f)
+	titleL.Font = Enum.Font.LuckiestGuy -- chunky cartoon title font
+	make("UITextSizeConstraint", { MaxTextSize = 34 }, titleL)
+	titleL:FindFirstChildOfClass("UIStroke").Thickness = 3.5
 	local close = makeButton({ Position = UDim2.new(1, -50, 0, 10), Size = UDim2.fromOffset(38, 38), Text = "X", TextSize = 22 }, f, RED)
 	close.Activated:Connect(function()
 		closeMenus()
@@ -3110,21 +3197,13 @@ do
 	end)
 	abtn(g, "God Mode (toggle)", Color3.fromRGB(190, 110, 255), cmd("God"))
 
-	g = section("FLOODS")
-	local names = {}
-	for _, wt in ipairs(Config.WaveTypes) do
-		table.insert(names, (wt.Emoji or "") .. " " .. wt.Name)
+	g = section("FLOODS - tap one to send it right now")
+	for _, wt in ipairs(Config.WaveTypes) do -- one button per wave type, in its own colour, so each can be tested on its own
+		local b = abtn(g, (wt.Emoji or "") .. " " .. wt.Name, wt.Color:Lerp(BLACK, 0.15), cmd("Wave", wt.Name))
+		b.TextScaled = true
+		make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }, b)
 	end
-	label({ Size = UDim2.fromOffset(300, 40), TextSize = 13, TextWrapped = true, TextColor3 = Color3.fromRGB(200, 230, 255), TextXAlignment = Enum.TextXAlignment.Left, Text = "All flood types in rotation: " .. table.concat(names, "  •  ") }, g)
-	local waveIdx = 0
-	local waveBtn = abtn(g, "Wave: RANDOM", Color3.fromRGB(80, 170, 255), function() end)
-	waveBtn.Activated:Connect(function()
-		waveIdx = (waveIdx % (#Config.WaveTypes + 1)) + 1
-		waveBtn.Text = "Wave: " .. (waveIdx == 1 and "RANDOM" or Config.WaveTypes[waveIdx - 1].Name)
-	end)
-	abtn(g, "SEND WAVE NOW", RED, function()
-		Action:FireServer("Admin", "Wave", waveIdx > 1 and Config.WaveTypes[waveIdx - 1].Name or nil)
-	end)
+	abtn(g, "🎲 RANDOM WAVE", RED, cmd("Wave"))
 	abtn(g, "Pause / resume floods", Color3.fromRGB(80, 170, 255), cmd("PauseWaves"))
 	abtn(g, "Clear all floods", Color3.fromRGB(80, 170, 255), cmd("ClearWaves"))
 
@@ -3294,6 +3373,10 @@ make("UIGridLayout", { CellSize = isTouch and UDim2.fromOffset(134, 42) or UDim2
 local function sideButton(order, text, color, icon, onClick)
 	local b, l = bubbleButton({ LayoutOrder = order }, left, color, icon, text)
 	b.Activated:Connect(onClick)
+	b.Rotation = -1.5
+	task.delay(order * 0.23 % 1.4, function()
+		TweenService:Create(b, TweenInfo.new(1.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Rotation = 1.5 }):Play()
+	end)
 	return b, l
 end
 -- a small red dot on a button ("something is waiting for you")
@@ -3556,7 +3639,7 @@ end)
 -- SPIN icon: sits directly below the Robux star, same center column
 -- spinCountL, spinBanner: these two are updated from the HUD loop far below; left as implicit globals (no "local") so they don't cost a top-level register
 do -- scoped: everything else here is only needed to build/wire the Spin icon once
-	local spinHolder = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 90), Size = UDim2.fromOffset(96, 138), BackgroundTransparency = 1 }, gui)
+	local spinHolder = make("Frame", { Name = "SpinHolder", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 90), Size = UDim2.fromOffset(96, 138), BackgroundTransparency = 1 }, gui)
 	local spinWheelIcon = make("Frame", { Position = UDim2.fromOffset(0, 12), Size = UDim2.fromOffset(96, 96), BackgroundColor3 = Color3.fromRGB(120, 110, 230), ClipsDescendants = true }, spinHolder)
 	corner(spinWheelIcon, 48)
 	stroke(spinWheelIcon, 4, BLACK)
@@ -3623,6 +3706,25 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		Action:FireServer("PlaceTrap")
 	end
 end)
+-- RIGHT-SIDE HIDE ARROW: a little tab on the right edge tucks the Robux star + Spin icons off-screen (great on phones),
+-- tap it again to slide them back.
+do
+	local items = { starHolder, gui:FindFirstChild("SpinHolder") }
+	local home = {}
+	for i, it in ipairs(items) do
+		home[i] = it.Position
+	end
+	local tucked = false
+	local tab = makeButton({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, -150), Size = UDim2.fromOffset(isTouch and 40 or 34, 58), Text = ">", TextSize = 28, ZIndex = 6 }, gui, Color3.fromRGB(160, 110, 255))
+	tab.Activated:Connect(function()
+		tucked = not tucked
+		tab.Text = tucked and "<" or ">"
+		for i, it in ipairs(items) do
+			tween(it, 0.35, { Position = tucked and (home[i] + UDim2.fromOffset(170, 0)) or home[i] }, Enum.EasingStyle.Back, tucked and Enum.EasingDirection.In or Enum.EasingDirection.Out)
+		end
+	end)
+end
+
 ----------------------------------------------------------------
 -- CONFETTI + REVEAL ("YOU GOT!" popup with a bouncing Goober)
 ----------------------------------------------------------------
@@ -4734,7 +4836,8 @@ end
 ----------------------------------------------------------------
 do
 	local floods = {} -- [marker] = { Seg = {...} or nil, ...numbers }
-	local SEGMENTS = 14
+	local SEGMENTS = isTouch and 8 or 14 -- phones draw fewer water columns (much cheaper, still looks like a wave)
+	local DETAIL_DIST = isTouch and 450 or 700 -- beyond this only the plain slab is drawn
 
 	local function register(m)
 		if not m:IsA("BasePart") then
@@ -4844,7 +4947,7 @@ do
 				local x = info.StartX - info.Speed * (now - info.StartTime)
 				local zOff = info.SideToSide and math.sin((now - info.StartTime) * info.OscFreq) * info.OscAmp or 0
 				m.LocalTransparencyModifier = 0 -- the server's slab is ALWAYS visible: the wave can never disappear, whatever the camera does
-				if math.abs(x - viewX) > 700 then
+				if math.abs(x - viewX) > DETAIL_DIST then
 					destroyVisual(info) -- far away: only the plain slab
 					m.Transparency = info.SlabT
 				else
@@ -5406,7 +5509,7 @@ task.spawn(function()
 			mutationIcon.Visible = mutName ~= ""
 			if mutName ~= "" then
 				local mutDef = Config.Mutations[mutName]
-				mutationTipDesc.Text = mutName .. " Goobers are everywhere! Perk: " .. (mutDef and mutDef.Perk or "")
+				mutationTipDesc.Text = mutName .. " Goobers are everywhere! Perk: " .. (mutDef and (mutDef.PerkText or mutDef.Perk) or "")
 			end
 		end
 

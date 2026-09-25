@@ -5240,19 +5240,19 @@ end)
 -- Mutation Hour event
 task.spawn(function()
 	Workspace:SetAttribute("Event", "")
-	Workspace:SetAttribute("EventMutation", "")
+	Workspace:SetAttribute("MutationEventName", "")
 	while true do
 		task.wait(Config.EventEvery)
 		local mut = Config.EventMutations[rng:NextInteger(1, #Config.EventMutations)]
 		local def = Config.Mutations[mut]
 		MutationEvent = mut
 		Workspace:SetAttribute("Event", ("%s MUTATION HOUR - %s Goobers give %s!"):format(mut:upper(), mut, def.PerkText))
-		Workspace:SetAttribute("EventMutation", mut) -- the client's pulsing event icon reads this
+		Workspace:SetAttribute("MutationEventName", mut) -- the client's pulsing event icon reads this
 		notifyAll(("%s MUTATION HOUR!"):format(mut:upper()), def.Color, "reveal")
 		task.wait(Config.EventLength)
 		MutationEvent = false
 		Workspace:SetAttribute("Event", "")
-		Workspace:SetAttribute("EventMutation", "")
+		Workspace:SetAttribute("MutationEventName", "")
 	end
 end)
 
