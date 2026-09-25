@@ -2431,7 +2431,9 @@ local function adminCommand(player, cmd, a, b)
 	elseif cmd == "Pet" and typeof(a) == "string" and Config.PetById[a] then
 		givePet(player, Config.PetById[a])
 	elseif cmd == "Wave" then
-		triggerWave(typeof(a) == "string" and a or nil)
+		local wt = triggerWave(typeof(a) == "string" and a or nil)
+		AnnounceRemote:FireAllClients(wt.Title, wt.Sub, wt.Color, "horn")
+		notify(player, ("Admin: spawned %s %s"):format(wt.Emoji or "", wt.Name), GOLD)
 	elseif cmd == "PauseWaves" then
 		WavesPaused = not WavesPaused
 		notify(player, WavesPaused and "Waves paused" or "Waves resumed", GOLD)
@@ -2930,9 +2932,6 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 		if info.Id == passId and info.Id > 0 then
 			OwnsPass[player] = OwnsPass[player] or {}
 			OwnsPass[player][key] = true
-			if Data[player] then
-				Data[player].Donated += info.Price -- counts for the Top Donators board
-			end
 			applyVipAccess(player)
 			applySpeed(player)
 			refresh(player)
@@ -3009,7 +3008,7 @@ MarketplaceService.ProcessReceipt = function(receipt)
 		print(("[ROBUX] granted product %d to %s"):format(receipt.ProductId, buyerName))
 		local dd = pl and Data[pl]
 		if dd then
-			dd.Donated += receipt.CurrencySpent or 0 -- counts for the Top Donators board
+			-- (Top Donators only counts DONATION products - that's added in processReceiptInner, not here)
 			updateStats(pl)
 			task.spawn(saveData, pl)
 		end
@@ -5113,6 +5112,39 @@ do -- scoped: lastSlabDraw is only needed by this one Heartbeat connection, and 
 			end
 		end
 	end)
+end
+
+do
+	-- ADMIN CHAT COMMAND: "!wave rainbow" spawns that wave type right now ("!wave" lists them). Handy for testing each wave.
+	local function onChat(player, msg)
+		local arg = msg:lower():match("^!wave%s*(.*)$")
+		if not arg or not isAdmin(player) then
+			return
+		end
+		arg = arg:gsub("%s+$", "")
+		if arg ~= "" then
+			for _, wt in ipairs(Config.WaveTypes) do
+				if wt.Name:lower():find(arg, 1, true) then
+					adminCommand(player, "Wave", wt.Name)
+					return
+				end
+			end
+		end
+		local names = {}
+		for _, wt in ipairs(Config.WaveTypes) do
+			table.insert(names, (wt.Emoji or "") .. " " .. wt.Name:lower())
+		end
+		notify(player, "!wave <name>:  " .. table.concat(names, ",  "), GOLD)
+	end
+	local function hook(player)
+		player.Chatted:Connect(function(msg)
+			onChat(player, msg)
+		end)
+	end
+	Players.PlayerAdded:Connect(hook)
+	for _, player in ipairs(Players:GetPlayers()) do
+		hook(player)
+	end
 end
 
 local function pickWaveType(name)
