@@ -300,7 +300,11 @@ Config.Market = {
 }
 
 -- Leaderboards (need "Enable Studio Access to API Services" in Game Settings > Security)
-Config.Leaderboards = { Version = "v1", Refresh = 60, Size = 10 }
+Config.Leaderboards = { Version = "v1", Refresh = 60, Size = 10, Season = "launch" } -- Season: Most Money + Most Rebirths start fresh (Top Donators never resets)
+-- SAVE SLOT: every player's progress is stored under this prefix. Changing it = a full progress reset for everyone
+-- (old saves are kept untouched; donations and Robux-bought pet slots are carried over automatically - see loadData).
+Config.SaveSlot = "L1_" -- "L1_" = the public launch (the testing saves were "P_")
+Config.OldSaveSlot = "P_"
 
 ----------------------------------------------------------------
 -- ZONES
@@ -690,6 +694,17 @@ end
 
 -- LUCK: every level gives a chance that a normal Goober you grab turns into a random mutation.
 -- Level 1 = 1%, rising slowly (the curve is steep at the end) up to 50% at level 30. More levels unlock with Rebirths.
+-- BASE FLOORS need Rebirths: floor 2 at Rebirth 1, then one more floor every 2 Rebirths (floor 3 at 3, floor 4 at 5, floor 5 at 7)
+function Config.FloorsMaxLevel(rebirths)
+	rebirths = rebirths or 0
+	if rebirths < 1 then
+		return 0
+	end
+	return math.min(Config.Upgrades.Floors.Max, 1 + math.floor((rebirths - 1) / 2))
+end
+function Config.RebirthsForFloor(level) -- how many Rebirths floor-upgrade "level" needs (1 = the 2nd floor)
+	return level <= 1 and 1 or 1 + (level - 1) * 2
+end
 -- BASE SLOTS need Rebirths too: 6 slot upgrades to start (10 slots = one full floor), +8 per Rebirth (all 50 after 5 Rebirths)
 function Config.SlotsMaxLevel(rebirths)
 	return math.min(Config.Upgrades.Slots.Max, 6 + (rebirths or 0) * 8)
@@ -1095,6 +1110,31 @@ function Config.MutationPerks(placed, maxSlots)
 		Carry = have.Carry and Config.PerkCarry or 0,
 		Names = names,
 	}
+end
+
+----------------------------------------------------------------
+-- CASH PRICES: one knob that makes EVERY cash price a little higher (Gus's items, upgrades, eggs, Base Lock, pet slots, trails).
+-- 1 = the prices written above. Robux prices are NOT affected.
+----------------------------------------------------------------
+Config.CashPriceScale = 1.5
+do
+	local k = Config.CashPriceScale
+	for _, it in ipairs(Config.ShopItems) do
+		it.Price = math.floor(it.Price * k)
+	end
+	for _, u in pairs(Config.Upgrades) do
+		u.Base = math.floor(u.Base * k)
+	end
+	for _, e in ipairs(Config.Eggs) do
+		e.Price = math.floor(e.Price * k)
+	end
+	for i, v in ipairs(Config.PetSlotCash) do
+		Config.PetSlotCash[i] = v * k
+	end
+	for _, t in ipairs(Config.Trails) do
+		t.Price = t.Price * k
+	end
+	Config.LockCost = math.floor(Config.LockCost * k)
 end
 
 return Config

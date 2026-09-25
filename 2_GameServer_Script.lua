@@ -570,6 +570,7 @@ local function updateStats(player)
 	player:SetAttribute("CarryMax", Config.CarryMaxLevel(d.Rebirths))
 	player:SetAttribute("LuckMax", Config.LuckMaxLevel(d.Rebirths))
 	player:SetAttribute("SlotsMax", Config.SlotsMaxLevel(d.Rebirths))
+	player:SetAttribute("FloorsMax", Config.FloorsMaxLevel(d.Rebirths))
 	do
 		local owned = {}
 		for id in pairs(d.Trails) do
@@ -1181,46 +1182,75 @@ do
 end -- closes the Wacker section's do block (see the comment above WACKER_SCALE)
 
 -- BEAR TRAPS
+-- A real BEAR TRAP: two half-circle steel jaws lying open with teeth pointing up, a trigger plate in the middle (red ring
+-- while armed), a spring bar with a leaf spring at each end, and a chain to a stake. When it catches someone the jaws SNAP shut.
 local function buildTrap(owner, pos)
 	local model = Instance.new("Model")
 	model.Name = "BearTrap"
 	model.Parent = TrapFolder
-	local y = 0.4
-	part({
-		Name = "Plate",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.5, 6, 6),
-		CFrame = CFrame.new(pos.X, y, pos.Z) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(70, 70, 85),
-		Material = Enum.Material.Metal,
-		CanCollide = false,
-	}, model)
-	local core = part({
-		Name = "Core",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.6, 2, 2),
-		CFrame = CFrame.new(pos.X, y + 0.1, pos.Z) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(255, 60, 60),
-		Material = Enum.Material.Neon,
-		CanCollide = false,
-	}, model)
-	for i = 1, 10 do
-		local a = (i / 10) * math.pi * 2
-		part({
-			Name = "Spike",
-			Size = Vector3.new(0.5, 1.8, 0.5),
-			CFrame = CFrame.new(pos.X + math.cos(a) * 2.4, y + 0.9, pos.Z + math.sin(a) * 2.4) * CFrame.Angles(math.rad(12) * math.sin(a), 0, -math.rad(12) * math.cos(a)),
-			Color = (i % 2 == 0) and Color3.fromRGB(240, 240, 250) or Color3.fromRGB(255, 90, 90),
-			CanCollide = false,
-		}, model)
+	local y = 0.25
+	local METAL, DARK, STEEL = Color3.fromRGB(110, 110, 125), Color3.fromRGB(45, 45, 55), Color3.fromRGB(215, 220, 230)
+	local c = CFrame.new(pos.X, y, pos.Z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local function p(name, size, off, color, material, shape)
+		return part({ Name = name, Shape = shape or Enum.PartType.Block, Size = size, CFrame = c * off, Color = color, Material = material or Enum.Material.Metal, CanCollide = false, CastShadow = false }, model)
 	end
-	billboard(core, "TRAP", RED, Vector3.new(0, 3, 0), UDim2.fromOffset(90, 26), 60)
+	local UPRIGHT = CFrame.Angles(0, 0, math.rad(90)) -- a cylinder standing up
+	-- spring bar + leaf springs + coil sleeves
+	p("SpringBar", Vector3.new(8.4, 0.3, 0.6), CFrame.new(), DARK)
+	for _, sx in ipairs({ -1, 1 }) do
+		p("LeafSpring", Vector3.new(2.4, 0.35, 1.1), CFrame.new(sx * 4.8, 0.25, 0) * CFrame.Angles(0, 0, math.rad(sx * -10)), METAL)
+		p("SpringCoil", Vector3.new(0.6, 1.1, 1.1), CFrame.new(sx * 3.2, 0.2, 0), DARK, nil, Enum.PartType.Cylinder)
+	end
+	-- trigger plate with the armed ring underneath
+	local ring = p("ArmedRing", Vector3.new(0.12, 3, 3), CFrame.new(0, -0.05, 0) * UPRIGHT, Color3.fromRGB(255, 50, 60), Enum.Material.Neon, Enum.PartType.Cylinder)
+	local core = p("TriggerPlate", Vector3.new(0.3, 2.4, 2.4), CFrame.new(0, 0.12, 0) * UPRIGHT, METAL, nil, Enum.PartType.Cylinder)
+	-- chain + stake
+	for k = 1, 4 do
+		p("ChainLink", Vector3.new(0.7, 0.45, 0.45), CFrame.new(-6.2 - k * 0.6, 0, 0) * CFrame.Angles(k % 2 == 0 and math.rad(90) or 0, 0, 0), DARK, nil, Enum.PartType.Cylinder)
+	end
+	p("Stake", Vector3.new(1.4, 0.5, 0.5), CFrame.new(-9.2, 0.5, 0) * UPRIGHT, DARK, nil, Enum.PartType.Cylinder)
+	-- the two jaws (half circles) with teeth
+	local R, SEG = 2.9, 7
+	local jaws = { [1] = {}, [-1] = {} }
+	for _, side in ipairs({ 1, -1 }) do
+		for k = 0, SEG - 1 do
+			local a = (k + 0.5) / SEG * math.pi
+			local pt = Vector3.new(math.cos(a) * R, 0.15, side * math.sin(a) * R)
+			local tangent = Vector3.new(-math.sin(a), 0, side * math.cos(a))
+			local frame = CFrame.lookAt(pt, pt + tangent)
+			table.insert(jaws[side], p("Jaw", Vector3.new(0.45, 0.35, 2 * R * math.sin(math.pi / (2 * SEG)) * 1.15), frame, METAL))
+			table.insert(jaws[side], p("Tooth", Vector3.new(0.35, 0.35, 0.35), frame * CFrame.new(0, 0.42, 0) * CFrame.Angles(0, 0, math.rad(45)) * CFrame.new(0, 0, 0), STEEL))
+		end
+	end
+	billboard(core, "TRAP", RED, Vector3.new(0, 2.6, 0), UDim2.fromOffset(80, 22), 50)
+	local function snap()
+		ring.Color = Color3.fromRGB(60, 60, 70)
+		ring.Material = Enum.Material.Metal
+		local orig = {}
+		for side, list in pairs(jaws) do
+			for _, jp in ipairs(list) do
+				orig[jp] = { side, c:ToObjectSpace(jp.CFrame) }
+			end
+		end
+		task.spawn(function()
+			for step = 1, 4 do -- the jaws swing up on their hinge and meet in the middle
+				local k = step / 4
+				for jp, info in pairs(orig) do
+					if jp.Parent then
+						jp.CFrame = c * CFrame.Angles(-info[1] * math.rad(88) * k, 0, 0) * info[2]
+					end
+				end
+				task.wait(0.03)
+			end
+		end)
+	end
 	table.insert(TrapList, {
 		Model = model,
 		Owner = owner,
 		Pos = pos,
 		ArmedAt = os.clock() + 1.5,
 		Expires = os.clock() + Config.TrapLife,
+		Snap = snap,
 	})
 end
 
@@ -1274,8 +1304,13 @@ local function trapLoop()
 									if t.Owner.Parent then
 										notify(t.Owner, "", GREEN, "buy")
 									end
-									t.Model:Destroy()
 									table.remove(TrapList, i)
+									if t.Snap then
+										t.Snap() -- SNAP! the jaws close on them, then the trap is gone
+									end
+									task.delay(1.6, function()
+										t.Model:Destroy()
+									end)
 									break
 								end
 							end
@@ -1617,6 +1652,8 @@ local function buyUpgrade(player, name, count)
 		max = Config.CarryMaxLevel(d.Rebirths) -- more capacity needs Rebirths
 	elseif name == "Luck" then
 		max = Config.LuckMaxLevel(d.Rebirths) -- more luck needs Rebirths too
+	elseif name == "Floors" then
+		max = Config.FloorsMaxLevel(d.Rebirths) -- every new floor needs Rebirths
 	elseif name == "Slots" then
 		max = math.min(max, Config.SlotsPerFloor * (1 + d.FloorLvl) - 4, Config.SlotsMaxLevel(d.Rebirths))
 	end
@@ -1626,6 +1663,8 @@ local function buyUpgrade(player, name, count)
 			notify(player, "Rebirth to unlock more capacity!", GOLD, "error")
 		elseif name == "Luck" and lvl < def.Max then
 			notify(player, "Rebirth to unlock more Luck!", GOLD, "error")
+		elseif name == "Floors" and lvl < def.Max then
+			notify(player, ("Rebirth %d to unlock the next floor!"):format(Config.RebirthsForFloor(lvl + 1)), GOLD, "error")
 		elseif name == "Slots" and lvl >= Config.SlotsMaxLevel(d.Rebirths) and lvl < def.Max then
 			notify(player, "Rebirth to unlock more base slots!", GOLD, "error")
 		elseif name == "Slots" then
@@ -2734,6 +2773,8 @@ do -- scoped: rollWheelIndex and grantWheelResult are only used by spinWheel/use
 end
 
 -- Drop the goober you picked up LAST (key Q). It lands in front of you and can't be grabbed again for 2 seconds.
+VoluntaryDrops = setmetatable({}, { __mode = "k" }) -- [player] = { [zone] = os.clock() of their last deliberate drop }
+
 local function dropOne(player)
 	local list, d = Carrying[player], Data[player]
 	if not list or not d or #list == 0 or (Stunned[player] or 0) > os.clock() then
@@ -2754,6 +2795,11 @@ local function dropOne(player)
 	NoGrab[player] = os.clock() + 2
 	syncCarry(player)
 	createPickup(item, Vector3.new(x, 0, z), nil, 60)
+	-- remember a DELIBERATE drop (per zone): only this lets a boss teleport back to you if you grab it again (see BossSystem)
+	if item.Zone then
+		VoluntaryDrops[player] = VoluntaryDrops[player] or {}
+		VoluntaryDrops[player][item.Zone] = os.clock()
+	end
 	notify(player, "", GOLD, "pop")
 end
 
@@ -2876,7 +2922,7 @@ local function loadData(player)
 		warn("[Goober] DataStore unavailable - progress will not save (enable API access in Studio).")
 		return d
 	end
-	local key = "P_" .. player.UserId
+	local key = Config.SaveSlot .. player.UserId
 	local ok, result = false, nil
 	for _ = 1, 3 do
 		ok, result = pcall(function()
@@ -2890,6 +2936,21 @@ local function loadData(player)
 	SaveAllowed[player] = ok
 	if not ok then
 		warn("[Goober] Could not load data for " .. player.Name .. ": " .. tostring(result))
+		return d
+	end
+	if result == nil and Config.OldSaveSlot and Config.OldSaveSlot ~= Config.SaveSlot then
+		-- FIRST JOIN AFTER THE PROGRESS RESET: everyone starts fresh, but what they paid Robux for comes with them -
+		-- their donation total (Top Donators) and pet slots 5/6 if they bought them
+		local okOld, old = pcall(function()
+			return Store:GetAsync(Config.OldSaveSlot .. player.UserId)
+		end)
+		if okOld and type(old) == "table" then
+			d.Donated = math.max(0, tonumber(old.Donated) or 0)
+			local slots = math.floor(tonumber(old.PetSlots) or 0)
+			if slots > #Config.PetSlotCash then -- (only slots past the cash ones were bought with Robux)
+				d.PetSlots = math.min(slots, Config.MaxPetSlots - Config.PetSlotsFree)
+			end
+		end
 		return d
 	end
 	if type(result) == "table" then
@@ -3043,7 +3104,7 @@ function saveData(player)
 	end
 	for _ = 1, 3 do
 		local ok, err = pcall(function()
-			Store:SetAsync("P_" .. player.UserId, payload)
+			Store:SetAsync(Config.SaveSlot .. player.UserId, payload)
 		end)
 		if ok then
 			return
@@ -6133,7 +6194,8 @@ do
 						watched = true
 					end
 					-- it hunts somebody who carries a Goober from ITS zone and has not reached the plaza yet
-					if p.X >= RS_START and not GodMode[plr] and carriesFrom(plr, b.Zone) then
+					-- (never someone standing in a safe zone: the boss backs off and walks home instead)
+					if p.X >= RS_START and math.abs(p.Z) <= RW / 2 and not GodMode[plr] and carriesFrom(plr, b.Zone) then
 						if not targetDist or dist < targetDist then
 							target, targetDist, targetHrp = plr, dist, hrp
 						end
@@ -6145,14 +6207,26 @@ do
 				b.Hunting = hunting
 				b.Mark.TextColor3 = hunting and HUNT or IDLE
 				b.Body:SetAttribute("Hunting", hunting)
+				b.CatchUpFor = nil
 				if hunting then
-					notify(target, cfg.Name .. " is hunting you! Drop the Goober or run for the entrance!", RED, "alarm")
+					-- did this player DROP one of this zone's Goobers on purpose recently and just grab it again? then (and only
+					-- then) the boss may teleport back behind them - this blocks the drop-it-and-wait-for-the-boss-to-leave trick
+					local vd = VoluntaryDrops[target] and VoluntaryDrops[target][b.Zone]
+					if vd and os.clock() - vd < 90 then
+						b.CatchUpFor = target
+						VoluntaryDrops[target][b.Zone] = nil
+					end
+					if os.clock() - (b.LastAlarm or 0) > 6 then
+						b.LastAlarm = os.clock()
+						notify(target, cfg.Name .. " is hunting you! Drop the Goober or run for the entrance!", RED, "alarm")
+					end
 				end
 			end
-			-- CATCH-UP: a hunting boss that has been left far behind (e.g. you dropped the Goober, it walked home, you grabbed it
-			-- again) jumps back to a short distance behind you, then keeps chasing at its normal speed
+			-- CATCH-UP: ONLY after you dropped this zone's Goober on purpose and grabbed it again while the boss was walking home:
+			-- if it's far away it jumps back to a short distance behind you, then keeps chasing at its normal speed
 			local T = Config.BossTuning
-			if hunting and targetDist > (T.CatchUpDistance or 70) + cfg.Size and os.clock() - (b.LastCatchUp or 0) > (T.CatchUpCooldown or 4) then
+			if hunting and b.CatchUpFor == target and targetDist > (T.CatchUpDistance or 70) + cfg.Size then
+				b.CatchUpFor = nil -- once per deliberate drop
 				b.LastCatchUp = os.clock()
 				local tp = targetHrp.Position
 				local away = Vector3.new(b.Pos.X - tp.X, 0, b.Pos.Z - tp.Z)
@@ -6408,15 +6482,15 @@ do
 	local lbStores, legacyCash = {}, nil
 	for _, info in ipairs(LB_INFO) do
 		local ok, st = pcall(function()
-			return DataStoreService:GetOrderedDataStore("GAG_LB_" .. info.Key .. "_" .. Config.Leaderboards.Version .. (info.Key == "Cash" and "_big" or ""))
+			-- Money + Rebirths boards are per Season (a progress reset starts them fresh); Top Donators is never reset
+			local season = (info.Key ~= "Donated" and Config.Leaderboards.Season) and ("_" .. Config.Leaderboards.Season) or ""
+			return DataStoreService:GetOrderedDataStore("GAG_LB_" .. info.Key .. "_" .. Config.Leaderboards.Version .. (info.Key == "Cash" and "_big" or "") .. season)
 		end)
 		if ok then
 			lbStores[info.Key] = st
 		end
 	end
-	pcall(function()
-		legacyCash = DataStoreService:GetOrderedDataStore("GAG_LB_Cash_" .. Config.Leaderboards.Version)
-	end)
+	-- (the old capped Cash board is NOT merged in any more: the launch reset started the money board fresh)
 
 	local nameCache = {}
 	local function userName(uid)

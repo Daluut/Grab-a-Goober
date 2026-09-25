@@ -1158,6 +1158,23 @@ for _, info in ipairs({
 		boostTip.Title.TextColor3 = col
 		local remaining = math.max(0, math.ceil((player:GetAttribute("Boost" .. kind) or 0) - workspace:GetServerTimeNow()))
 		boostTip.Desc.Text = shownItem.Desc .. "  (" .. remaining .. "s left)"
+		if kind == "Magnet" then -- say exactly which rarities the magnet is pulling in, so nobody wonders why a Goober was skipped
+			local names = {}
+			local csv = "," .. (player:GetAttribute("MagnetFilter") or "") .. ","
+			for name, r in pairs(Config.Rarities) do
+				if csv == ",," or csv:find("," .. r.Rank .. ",", 1, true) then
+					table.insert(names, { r.Rank, name })
+				end
+			end
+			table.sort(names, function(x, y)
+				return x[1] < y[1]
+			end)
+			local list = {}
+			for _, n in ipairs(names) do
+				table.insert(list, n[2])
+			end
+			boostTip.Desc.Text = ("Pulling: %s  (%ds left)"):format(#list > 0 and table.concat(list, ", ") or "everything", remaining)
+		end
 		boostTip.Visible = true
 	end
 	local function hideTip()
@@ -1783,7 +1800,7 @@ do
 		for id, r in pairs(upgRows) do
 			local lvl = player:GetAttribute(UPG[id].attr) or 0
 			local max = Config.Upgrades[id].Max
-			local luckCap = (id == "Luck" and (player:GetAttribute("LuckMax") or max)) or (id == "Slots" and (player:GetAttribute("SlotsMax") or max)) or max -- Luck + Slots levels unlock with Rebirths
+			local luckCap = (id == "Luck" and (player:GetAttribute("LuckMax") or max)) or (id == "Slots" and (player:GetAttribute("SlotsMax") or max)) or (id == "Floors" and (player:GetAttribute("FloorsMax") or max)) or max -- Luck, Slots + Floors unlock with Rebirths
 			r.Title.Text = ("%s   Lv %d/%d"):format(Config.Upgrades[id].Label, lvl, max)
 			r.Fill.Size = UDim2.fromScale(math.clamp(lvl / max, 0, 1), 1)
 			local floorsLvl = player:GetAttribute("FloorsLvl") or 0
@@ -1791,7 +1808,9 @@ do
 				r.Desc.Text = "MAXED OUT!"
 				setBtn(r.Btn, "MAX", GREY)
 			elseif lvl >= luckCap then
-				r.Desc.Text = (id == "Luck") and ("%.1f%% mutate chance. REBIRTH to unlock more Luck levels!"):format(Config.LuckMutateChance(lvl) * 100) or "REBIRTH to unlock more base slots!"
+				r.Desc.Text = (id == "Luck") and ("%.1f%% mutate chance. REBIRTH to unlock more Luck levels!"):format(Config.LuckMutateChance(lvl) * 100)
+					or (id == "Floors") and ("Reach Rebirth %d to build the next floor!"):format(Config.RebirthsForFloor(lvl + 1))
+					or "REBIRTH to unlock more base slots!"
 				setBtn(r.Btn, "REBIRTH", GREY)
 			elseif id == "Slots" and 4 + lvl >= Config.SlotsPerFloor * (1 + floorsLvl) then
 				r.Desc.Text = "Floors full - build a Base Floor first!"
