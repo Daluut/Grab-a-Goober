@@ -2806,7 +2806,8 @@ function creditDonation(admin, userId, amount)
 				return (tonumber(old) or 0) + amount
 			end)
 			local board = DataStoreService:GetOrderedDataStore("GAG_LB_Donated_" .. Config.Leaderboards.Version)
-			local current = tonumber(board:GetAsync(tostring(userId))) or 0
+			local existing = board:GetAsync(tostring(userId)) -- (returns NOTHING for someone not on the board yet, so store it first)
+			local current = tonumber(existing) or 0
 			board:SetAsync(tostring(userId), math.floor(current + amount))
 		end)
 		if ok then

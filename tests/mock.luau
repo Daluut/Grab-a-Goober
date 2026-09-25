@@ -1118,6 +1118,9 @@ SHARED.STORES = stores
 local function newStore(name, ordered)
 	local st = { name = name, data = {} }
 	function st:GetAsync(k)
+		if self.data[k] == nil then
+			return -- like Roblox: NO values at all (not even nil) for a missing key
+		end
 		return self.data[k]
 	end
 	function st:SetAsync(k, v)
