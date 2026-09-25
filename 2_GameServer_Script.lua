@@ -178,6 +178,19 @@ local function buildGoober(id, mutation, size, cf, anchored, parent)
 	return Creatures.Build(Creatures.SpecForGoober(id, mutation), size, cf, anchored, parent)
 end
 
+-- Animated models (Goobers on pedestals / the runway, eggs): stream them as ONE piece and record how many parts they have,
+-- so a client never animates a Goober whose eyes and face haven't arrived yet (that scattered faces across the map).
+function finishAnimated(model)
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	local n = 0
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			n += 1
+		end
+	end
+	model:SetAttribute("Parts", n)
+end
+
 local function itemName(item)
 	local prefix = (item.Mut ~= "Normal") and (item.Mut .. " ") or ""
 	return prefix .. item.Id
@@ -349,6 +362,7 @@ local function renderBase(player)
 			model:SetAttribute("HZ", ped.Position.Z)
 			model:SetAttribute("Yaw", -math.pi / 2)
 			model:SetAttribute("Seed", s * 1.7)
+			finishAnimated(model)
 			model.Parent = plot.FloorModels[math.ceil(s / Config.SlotsPerFloor)]
 			CollectionService:AddTag(model, "IdleGoober")
 			plot.Models[s] = model
@@ -765,6 +779,7 @@ local function createPickup(item, pos, respawnZone, lifetime)
 	model:SetAttribute("Dir", rng:NextInteger(0, 1) * 2 - 1)
 	model:SetAttribute("Rate", rng:NextNumber(0.55, 0.9))
 	CollectionService:AddTag(model, "WalkGoober")
+	finishAnimated(model)
 	model.Parent = Pickups
 
 	local text = itemName(item) .. "\n$" .. Config.Format(itemIncome(item)) .. "/s"
@@ -4595,6 +4610,7 @@ do
 			model:SetAttribute("HZ", body.Position.Z)
 			model:SetAttribute("Yaw", 0)
 			CollectionService:AddTag(model, "BobModel")
+			finishAnimated(model)
 			model.Parent = World
 			do -- price tag: a rounded candy panel with the egg's name and a big green price
 				local tag = Instance.new("BillboardGui")
@@ -4966,6 +4982,7 @@ local function buildExtras()
 		end
 	end
 
+
 	-- REALISTIC TREE: roots, a leaning tapered trunk in segments, branches, and a canopy of many leaf clusters in 3 greens that sways in the wind
 	-- (deliberately left as an implicit global, not added to the local-forward-declare line above: this file is already
 	-- at its 200-top-level-local ceiling, and realTree only needs to exist by the time buildPlot() runs, which it does)
@@ -5017,6 +5034,408 @@ local function buildExtras()
 		canopy.Parent = Decor
 		canopy:SetAttribute("BaseCF", canopy:GetPivot())
 		CollectionService:AddTag(canopy, "SwayTree")
+	end
+
+	-- LIVELY ZONES: on top of the zone's main prop, every biome gets its own SET of themed props (4-5 kinds each) along the
+	-- walls, with a few glowing / smoking / sparkling ones. None of them collide, so nothing blocks runners or Goobers.
+	do
+		local NEON, GLASS, WOOD, SLATE, METAL = Enum.Material.Neon, Enum.Material.Glass, Enum.Material.Wood, Enum.Material.Slate, Enum.Material.Metal
+		local function at(x, y, z, rot)
+			return CFrame.new(x, y, z) * (rot or CFrame.new())
+		end
+		local function P(size, cf, color, material, shape, transparency)
+			return part({ Name = "ZoneProp", Shape = shape or Enum.PartType.Block, Size = size, CFrame = cf, Color = color, Material = material or Enum.Material.SmoothPlastic, Transparency = transparency or 0, CanCollide = false, CastShadow = false }, Decor)
+		end
+		local function emit(host, color, texture, rate, speed, size, life)
+			local pe = Instance.new("ParticleEmitter")
+			pe.Texture = texture or "rbxasset://textures/particles/sparkles_main.dds"
+			pe.Color = ColorSequence.new(color)
+			pe.Rate = rate or 4
+			pe.Speed = NumberRange.new(speed or 2, (speed or 2) * 1.6)
+			pe.Lifetime = NumberRange.new(life or 1.5, (life or 1.5) * 1.6)
+			pe.Size = NumberSequence.new(size or 0.6, 0)
+			pe.LightEmission = 0.7
+			pe.SpreadAngle = Vector2.new(25, 25)
+			pe.EmissionDirection = Enum.NormalId.Top
+			pe.Parent = host
+			return pe
+		end
+		local FIRE, SMOKE = "rbxasset://textures/particles/fire_main.dds", "rbxasset://textures/particles/smoke_main.dds"
+		local YAW = function()
+			return CFrame.Angles(0, rng:NextNumber(0, 6.28), 0)
+		end
+		local HSV = function(sat)
+			return Color3.fromHSV(rng:NextNumber(), sat or 0.65, 1)
+		end
+
+		local SETS = {
+			tree = { -- Grass: flowers, bushes, fences, rocks, trees
+				function(x, z) -- flower patch
+					for _ = 1, 6 do
+						local fx, fz = x + rng:NextNumber(-3, 3), z + rng:NextNumber(-3, 3)
+						local h = rng:NextNumber(1.2, 2.2)
+						P(Vector3.new(h, 0.2, 0.2), at(fx, h / 2, fz, UPRIGHT), rgb(80, 170, 70), nil, CYL)
+						P(Vector3.new(0.9, 0.9, 0.9), at(fx, h + 0.2, fz), HSV(0.55), nil, BALL)
+						P(Vector3.new(0.35, 0.35, 0.35), at(fx, h + 0.3, fz - 0.3), rgb(255, 225, 90), nil, BALL)
+					end
+				end,
+				function(x, z) -- round bush
+					for k = 1, 3 do
+						local d = rng:NextNumber(3.5, 5.5)
+						P(Vector3.new(d, d, d), at(x + (k - 2) * 2.4, d * 0.4, z + rng:NextNumber(-1, 1)), rgb(70, 170 + k * 12, 80), nil, BALL)
+					end
+				end,
+				function(x, z) -- little wooden fence
+					for k = 0, 3 do
+						P(Vector3.new(0.6, 3, 0.6), at(x + k * 3, 1.5, z), rgb(170, 120, 70), WOOD)
+					end
+					for _, y in ipairs({ 1.1, 2.3 }) do
+						P(Vector3.new(9.4, 0.4, 0.3), at(x + 4.5, y, z), rgb(190, 140, 85), WOOD)
+					end
+				end,
+				function(x, z) -- mossy rock
+					local d = rng:NextNumber(3, 6)
+					P(Vector3.new(d, d * 0.6, d * 0.8), at(x, d * 0.25, z, YAW()), rgb(130, 135, 140), SLATE)
+					P(Vector3.new(d * 0.8, 0.4, d * 0.6), at(x, d * 0.55, z, YAW()), rgb(90, 170, 80))
+				end,
+				function(x, z) -- a real tree (fewer of these: they are the biggest)
+					realTree(x, z, rng:NextNumber(0.55, 0.8))
+				end,
+			},
+			lava = { -- Lava: volcanoes, obsidian spikes, lava cracks
+				function(x, z) -- mini volcano with embers
+					local r = rng:NextNumber(7, 10)
+					for i = 0, 3 do
+						local w = r * (1 - i * 0.22)
+						P(Vector3.new(2.2, w * 2, w * 2), at(x, 1.1 + i * 2.1, z, UPRIGHT), rgb(70 - i * 5, 50, 50), SLATE, CYL)
+					end
+					local top = P(Vector3.new(0.5, r * 0.7, r * 0.7), at(x, 8.7, z, UPRIGHT), rgb(255, 120, 30), NEON, CYL)
+					emit(top, rgb(255, 150, 50), FIRE, 6, 6, 1.4, 1.2)
+				end,
+				function(x, z) -- obsidian spikes
+					for k = 1, 3 do
+						local h = rng:NextNumber(5, 11)
+						P(Vector3.new(1.6, h, 1.6), at(x + (k - 2) * 2.2, h / 2 - 0.5, z, CFrame.Angles(math.rad(rng:NextNumber(-15, 15)), 0, math.rad(rng:NextNumber(-15, 15)))), rgb(30, 20, 40), GLASS)
+					end
+				end,
+				function(x, z) -- glowing lava crack
+					for k = 1, 4 do
+						P(Vector3.new(4, 0.15, 0.7), at(x + k * 3, 0.08, z + rng:NextNumber(-1, 1), CFrame.Angles(0, rng:NextNumber(-0.6, 0.6), 0)), rgb(255, 110, 20), NEON)
+					end
+				end,
+			},
+			candy = { -- Candy: lollipops, candy canes, gumdrops, donuts
+				function(x, z) -- giant lollipop
+					local h = rng:NextNumber(7, 11)
+					P(Vector3.new(h, 0.6, 0.6), at(x, h / 2, z, UPRIGHT), rgb(250, 250, 250), nil, CYL)
+					local c = HSV(0.6)
+					P(Vector3.new(0.8, 5, 5), at(x, h + 2, z, CFrame.Angles(0, math.rad(90), 0)), c, nil, CYL)
+					P(Vector3.new(0.9, 3, 3), at(x, h + 2, z, CFrame.Angles(0, math.rad(90), 0)), c:Lerp(rgb(255, 255, 255), 0.55), nil, CYL)
+					P(Vector3.new(1, 1.2, 1.2), at(x, h + 2, z, CFrame.Angles(0, math.rad(90), 0)), c, nil, CYL)
+				end,
+				function(x, z) -- candy cane
+					for i = 0, 5 do
+						P(Vector3.new(1.4, 0.9, 0.9), at(x, 0.7 + i * 1.4, z, UPRIGHT), i % 2 == 0 and rgb(235, 40, 60) or rgb(255, 255, 255), nil, CYL)
+					end
+					P(Vector3.new(1.1, 1.1, 1.1), at(x + 0.6, 9, z), rgb(235, 40, 60), nil, BALL)
+					P(Vector3.new(1, 1, 1), at(x + 1.4, 8.3, z), rgb(255, 255, 255), nil, BALL)
+				end,
+				function(x, z) -- gumdrops
+					for k = 1, 3 do
+						local d = rng:NextNumber(2, 3.5)
+						P(Vector3.new(d, d * 1.1, d), at(x + (k - 2) * 3, d * 0.4, z + rng:NextNumber(-1, 1)), HSV(0.75), GLASS, BALL, 0.15)
+					end
+				end,
+				function(x, z) -- donut with sprinkles (a ring of balls)
+					local icing = HSV(0.4)
+					for k = 1, 12 do
+						local a = k / 12 * math.pi * 2
+						P(Vector3.new(2.2, 2.2, 2.2), at(x + math.cos(a) * 2.6, 1.1, z + math.sin(a) * 2.6), rgb(210, 150, 90), nil, BALL)
+						P(Vector3.new(1.7, 0.8, 1.7), at(x + math.cos(a) * 2.6, 2, z + math.sin(a) * 2.6), icing, nil, BALL)
+						if k % 3 == 0 then
+							P(Vector3.new(0.5, 0.15, 0.15), at(x + math.cos(a) * 2.4, 2.45, z + math.sin(a) * 2.4, YAW()), HSV(0.8))
+						end
+					end
+				end,
+			},
+			cyber = { -- Cyber: hologram pillars, server racks, floating neon cubes
+				function(x, z) -- hologram pillar
+					P(Vector3.new(1, 4, 4), at(x, 0.5, z, UPRIGHT), rgb(30, 35, 55), METAL, CYL)
+					local holo = P(Vector3.new(8, 2.6, 2.6), at(x, 5, z, UPRIGHT), rgb(80, 230, 255), NEON, CYL, 0.55)
+					emit(holo, rgb(120, 240, 255), nil, 3, 1, 0.4, 2)
+				end,
+				function(x, z) -- server rack with blinking lights
+					P(Vector3.new(3, 8, 2.5), at(x, 4, z), rgb(25, 28, 40), METAL)
+					for k = 1, 5 do
+						P(Vector3.new(2.4, 0.25, 0.1), at(x, 1.2 + k * 1.3, z - 1.3), k % 2 == 0 and rgb(80, 255, 140) or rgb(255, 80, 200), NEON)
+					end
+				end,
+				function(x, z) -- floating neon cube
+					local s = rng:NextNumber(2, 3.5)
+					P(Vector3.new(s, s, s), at(x, rng:NextNumber(5, 9), z, CFrame.Angles(0.6, rng:NextNumber(0, 6), 0.6)), HSV(0.8), NEON, nil, 0.2)
+				end,
+			},
+			palm = { -- Jungle: ferns, bamboo, giant flowers, mossy rocks
+				function(x, z) -- fern
+					for k = 1, 7 do
+						local a = k / 7 * math.pi * 2
+						P(Vector3.new(0.3, 4.5, 1.4), at(x + math.cos(a) * 1.3, 1.6, z + math.sin(a) * 1.3, CFrame.Angles(0, -a, 0) * CFrame.Angles(0, 0, math.rad(40))), rgb(60, 160 + k * 6, 70))
+					end
+				end,
+				function(x, z) -- bamboo
+					for k = 1, 5 do
+						local h = rng:NextNumber(8, 14)
+						local bx, bz = x + rng:NextNumber(-2, 2), z + rng:NextNumber(-2, 2)
+						P(Vector3.new(h, 0.8, 0.8), at(bx, h / 2, bz, UPRIGHT), rgb(120, 190, 80), nil, CYL)
+						P(Vector3.new(0.3, 0.95, 0.95), at(bx, h * 0.5, bz, UPRIGHT), rgb(90, 150, 60), nil, CYL)
+					end
+				end,
+				function(x, z) -- giant jungle flower
+					local c = HSV(0.75)
+					for k = 1, 5 do
+						local a = k / 5 * math.pi * 2
+						P(Vector3.new(3, 0.5, 2), at(x + math.cos(a) * 1.8, 0.4, z + math.sin(a) * 1.8, CFrame.Angles(0, -a, 0)), c, nil, BALL)
+					end
+					P(Vector3.new(1.8, 1.8, 1.8), at(x, 0.9, z), rgb(255, 220, 80), nil, BALL)
+				end,
+				function(x, z) -- mossy rock
+					local d = rng:NextNumber(4, 7)
+					P(Vector3.new(d, d * 0.7, d), at(x, d * 0.3, z, YAW()), rgb(110, 110, 100), SLATE)
+					P(Vector3.new(d * 0.9, 0.5, d * 0.8), at(x, d * 0.66, z, YAW()), rgb(80, 150, 60))
+				end,
+			},
+			block = { -- Toy: stacked blocks, ring stacker, rubber duck, beach ball, crayons
+				function(x, z) -- stacked toy blocks (each with a contrasting face panel, like a letter block)
+					local y = 0
+					for k = 1, rng:NextInteger(2, 4) do
+						local s = rng:NextNumber(3, 4.5)
+						local c = HSV(0.7)
+						local rot = CFrame.Angles(0, rng:NextNumber(-0.4, 0.4), 0)
+						P(Vector3.new(s, s, s), at(x, y + s / 2, z, rot), c)
+						P(Vector3.new(s * 0.62, s * 0.62, s + 0.1), at(x, y + s / 2, z, rot), c:Lerp(rgb(255, 255, 255), 0.6))
+						y += s
+					end
+				end,
+				function(x, z) -- ring stacker toy
+					P(Vector3.new(0.8, 5, 5), at(x, 0.4, z, UPRIGHT), rgb(240, 200, 60), nil, CYL)
+					P(Vector3.new(8, 0.7, 0.7), at(x, 4, z, UPRIGHT), rgb(240, 200, 60), nil, CYL)
+					local cols = { rgb(230, 60, 70), rgb(255, 150, 40), rgb(250, 220, 60), rgb(70, 200, 90), rgb(70, 140, 255) }
+					for k = 1, 5 do
+						P(Vector3.new(1.1, 4.6 - k * 0.6, 4.6 - k * 0.6), at(x, 0.8 + k * 1.1, z, UPRIGHT), cols[k], nil, CYL)
+					end
+				end,
+				function(x, z) -- rubber duck
+					local yellow = rgb(255, 220, 50)
+					P(Vector3.new(4.5, 3.4, 3.4), at(x, 1.7, z), yellow, nil, BALL)
+					P(Vector3.new(2.6, 2.6, 2.6), at(x - 1.4, 4, z), yellow, nil, BALL)
+					P(Vector3.new(1.4, 0.5, 1), at(x - 2.8, 3.8, z), rgb(255, 140, 30), nil, BALL)
+					for _, s in ipairs({ -1, 1 }) do
+						P(Vector3.new(0.4, 0.4, 0.4), at(x - 2.4, 4.4, z + s * 0.6), rgb(20, 20, 30), nil, BALL)
+					end
+				end,
+				function(x, z) -- beach ball
+					local d = rng:NextNumber(3.5, 5)
+					P(Vector3.new(d, d, d), at(x, d / 2, z), rgb(255, 255, 255), nil, BALL)
+					for k, c in ipairs({ rgb(230, 60, 70), rgb(70, 140, 255), rgb(255, 210, 50) }) do
+						P(Vector3.new(0.3, d * 1.01, d * 1.01), at(x, d / 2, z, CFrame.Angles(0, k * math.rad(60), 0)), c, nil, CYL)
+					end
+				end,
+				function(x, z) -- giant crayons
+					for k = 1, 3 do
+						local c = HSV(0.8)
+						local cx = x + (k - 2) * 1.8
+						P(Vector3.new(6, 1.4, 1.4), at(cx, 3, z, UPRIGHT), c, nil, CYL)
+						P(Vector3.new(1.3, 1.3, 1.3), at(cx, 6.4, z), c, nil, BALL)
+						P(Vector3.new(2, 1.5, 1.5), at(cx, 2.4, z, UPRIGHT), c:Lerp(rgb(0, 0, 0), 0.25), nil, CYL)
+					end
+				end,
+			},
+			mushroom = { -- Mushroom Forest: giant mushrooms + glowing mini mushrooms with spores
+				function(x, z) -- giant spotted mushroom
+					local h = rng:NextNumber(6, 10)
+					P(Vector3.new(h, 2, 2), at(x, h / 2, z, UPRIGHT), rgb(245, 235, 220), nil, CYL)
+					local cap = HSV(0.7)
+					P(Vector3.new(9, 4, 9), at(x, h + 0.5, z), cap, nil, BALL)
+					for k = 1, 5 do
+						local a = k / 5 * math.pi * 2
+						P(Vector3.new(1.2, 0.5, 1.2), at(x + math.cos(a) * 2.8, h + 1.8, z + math.sin(a) * 2.8), rgb(255, 255, 255), nil, BALL)
+					end
+				end,
+				function(x, z) -- glowing mini mushrooms, drifting spores
+					local c = HSV(0.6)
+					local host
+					for k = 1, 4 do
+						local mx, mz = x + rng:NextNumber(-2, 2), z + rng:NextNumber(-2, 2)
+						P(Vector3.new(1.2, 0.5, 0.5), at(mx, 0.6, mz, UPRIGHT), rgb(240, 240, 220), nil, CYL)
+						host = P(Vector3.new(1.6, 0.9, 1.6), at(mx, 1.3, mz), c, NEON, BALL)
+					end
+					emit(host, c, nil, 3, 1, 0.4, 3)
+				end,
+			},
+			gear = { -- Steam City: gears, steam pipes, chimneys
+				function(x, z) -- big gear on its side
+					local r = rng:NextNumber(3, 5)
+					local rot = CFrame.Angles(0, math.rad(90), 0)
+					P(Vector3.new(1, r * 2, r * 2), at(x, r + 0.5, z, rot), rgb(180, 130, 70), METAL, CYL)
+					for k = 1, 10 do
+						local a = k / 10 * math.pi * 2
+						P(Vector3.new(0.9, 1.2, 1.2), at(x, r + 0.5 + math.sin(a) * r, z + math.cos(a) * r, CFrame.Angles(a, 0, 0)), rgb(160, 115, 60), METAL)
+					end
+					P(Vector3.new(1.3, 1.6, 1.6), at(x, r + 0.5, z, rot), rgb(90, 70, 50), METAL, CYL)
+				end,
+				function(x, z) -- pipe puffing steam
+					P(Vector3.new(7, 1.4, 1.4), at(x, 3.5, z, UPRIGHT), rgb(120, 100, 80), METAL, CYL)
+					P(Vector3.new(1.8, 1.8, 1.8), at(x, 3, z), rgb(200, 60, 50), METAL, CYL)
+					local top = P(Vector3.new(0.6, 2, 2), at(x, 7.2, z, UPRIGHT), rgb(90, 80, 70), METAL, CYL)
+					emit(top, rgb(230, 230, 230), SMOKE, 3, 3, 2.5, 2.5)
+				end,
+				function(x, z) -- brick chimney
+					P(Vector3.new(3, 12, 3), at(x, 6, z), rgb(150, 70, 50))
+					P(Vector3.new(3.6, 0.8, 3.6), at(x, 12.2, z), rgb(80, 70, 70))
+				end,
+			},
+			gem = { -- Crystal Cavern: crystal clusters, glowing geodes
+				function(x, z)
+					local c = HSV(0.5)
+					for k = 1, 5 do
+						local h = rng:NextNumber(3, 9)
+						P(Vector3.new(1.3, h, 1.3), at(x + rng:NextNumber(-2, 2), h / 2 - 0.3, z + rng:NextNumber(-2, 2), CFrame.Angles(math.rad(rng:NextNumber(-20, 20)), rng:NextNumber(0, 6), math.rad(rng:NextNumber(-20, 20)))), c, NEON, nil, 0.25)
+					end
+				end,
+				function(x, z)
+					local c = HSV(0.6)
+					P(Vector3.new(5, 3, 5), at(x, 1.2, z), rgb(90, 80, 100), SLATE, BALL)
+					local core = P(Vector3.new(3, 2, 3), at(x, 1.8, z), c, NEON, BALL)
+					emit(core, c, nil, 3, 1, 0.5, 2)
+				end,
+			},
+			star = { -- Cosmic Void: floating ringed planets, asteroids, twinkling stars
+				function(x, z)
+					local d = rng:NextNumber(3, 6)
+					local y = rng:NextNumber(8, 16)
+					P(Vector3.new(d, d, d), at(x, y, z), HSV(0.55), nil, BALL)
+					P(Vector3.new(0.3, d * 1.9, d * 1.9), at(x, y, z, CFrame.Angles(0.3, 0, math.rad(90) + 0.4)), rgb(230, 220, 255), NEON, CYL, 0.35)
+				end,
+				function(x, z)
+					for _ = 1, 3 do
+						local d = rng:NextNumber(1.5, 3.5)
+						P(Vector3.new(d, d * 0.8, d), at(x + rng:NextNumber(-3, 3), rng:NextNumber(3, 12), z + rng:NextNumber(-3, 3), YAW()), rgb(110, 100, 120), SLATE)
+					end
+				end,
+				function(x, z)
+					local st = P(Vector3.new(0.8, 0.8, 0.8), at(x, rng:NextNumber(6, 18), z), rgb(255, 250, 200), NEON, BALL)
+					emit(st, rgb(255, 250, 220), nil, 2, 0.5, 0.8, 1.5)
+				end,
+			},
+			neon = { -- Neon City: neon arches and lamp posts
+				function(x, z)
+					local c = HSV(0.8)
+					for _, s in ipairs({ -1, 1 }) do
+						P(Vector3.new(0.8, 10, 0.8), at(x + s * 4, 5, z), c, NEON)
+					end
+					P(Vector3.new(8.8, 0.8, 0.8), at(x, 10, z), c, NEON)
+				end,
+				function(x, z)
+					P(Vector3.new(0.5, 9, 0.5), at(x, 4.5, z), rgb(40, 40, 60), METAL)
+					P(Vector3.new(1.6, 1.6, 1.6), at(x, 9.3, z), HSV(0.6), NEON, BALL)
+				end,
+			},
+			ruins = { -- Jungle Ruins: broken columns, arches, stone heads
+				function(x, z) -- broken column (top chunk fallen over)
+					local stone = rgb(170, 160, 140)
+					local h = rng:NextNumber(4, 9)
+					P(Vector3.new(h, 3, 3), at(x, h / 2, z, UPRIGHT), stone, SLATE, CYL)
+					P(Vector3.new(3.5, 0.8, 3.5), at(x, 0.4, z), stone:Lerp(rgb(0, 0, 0), 0.1), SLATE)
+					P(Vector3.new(4, 3, 3), at(x + 3, 1.5, z + 1, CFrame.Angles(0, 0.6, 0)), stone, SLATE, CYL)
+					P(Vector3.new(0.3, h * 0.8, 0.3), at(x + 1.4, h * 0.4, z, CFrame.Angles(0, 0, 0.1)), rgb(70, 140, 60))
+				end,
+				function(x, z) -- ruined arch
+					local stone = rgb(160, 150, 130)
+					for _, s in ipairs({ -1, 1 }) do
+						P(Vector3.new(2, 9, 2), at(x + s * 4, 4.5, z), stone, SLATE)
+					end
+					P(Vector3.new(6, 1.6, 2), at(x - 1.5, 9.8, z, CFrame.Angles(0, 0, 0.08)), stone, SLATE)
+				end,
+				function(x, z) -- stone head statue
+					local stone = rgb(150, 145, 130)
+					P(Vector3.new(4, 6, 3.5), at(x, 3, z), stone, SLATE)
+					P(Vector3.new(3, 0.8, 0.5), at(x, 4.4, z - 1.8), stone:Lerp(rgb(0, 0, 0), 0.3), SLATE)
+					P(Vector3.new(1.2, 2, 0.8), at(x, 3, z - 1.9), stone, SLATE)
+				end,
+			},
+			spire = { -- Dragon Peak: rock spires, bones, dragon egg nests, fire braziers
+				function(x, z) -- rock spire
+					for i = 0, 3 do
+						local w = 5 - i * 1.1
+						P(Vector3.new(w, 4, w), at(x, 2 + i * 3.6, z, CFrame.Angles(0, i * 0.5, math.rad(i * 3))), rgb(90 - i * 6, 70, 70), SLATE)
+					end
+				end,
+				function(x, z) -- ribcage bones
+					for k = 1, 4 do
+						P(Vector3.new(0.6, 5, 0.6), at(x + k * 1.6, 2, z, CFrame.Angles(0, 0, math.rad(25))), rgb(240, 235, 220))
+					end
+					P(Vector3.new(7, 0.8, 0.8), at(x + 4, 0.5, z, CFrame.Angles(0, 0, math.rad(90)) * UPRIGHT), rgb(240, 235, 220), nil, CYL)
+				end,
+				function(x, z) -- dragon egg nest
+					for k = 1, 10 do
+						local a = k / 10 * math.pi * 2
+						P(Vector3.new(3, 0.5, 0.5), at(x + math.cos(a) * 2.2, 0.5, z + math.sin(a) * 2.2, CFrame.Angles(0, -a + 1.3, 0)), rgb(110, 80, 50), WOOD)
+					end
+					local egg = P(Vector3.new(2.4, 3.2, 2.4), at(x, 1.8, z), HSV(0.6), GLASS, BALL)
+					emit(egg, rgb(255, 200, 120), nil, 2, 0.5, 0.4, 2)
+				end,
+				function(x, z) -- fire brazier
+					P(Vector3.new(4, 0.8, 0.8), at(x, 2, z, UPRIGHT), rgb(60, 50, 50), METAL, CYL)
+					local bowl = P(Vector3.new(1.2, 3.2, 3.2), at(x, 4.4, z, UPRIGHT), rgb(80, 60, 50), METAL, CYL)
+					P(Vector3.new(1.8, 1.8, 1.8), at(x, 5.4, z), rgb(255, 140, 40), NEON, BALL)
+					emit(bowl, rgb(255, 140, 40), FIRE, 10, 4, 1.6, 0.8)
+				end,
+			},
+			rift = { -- Dimension Rift: floating shards, portal rings, glitch cubes
+				function(x, z) -- floating shards
+					for _ = 1, 4 do
+						local s = rng:NextNumber(1.2, 3)
+						P(Vector3.new(s, s * 2, s * 0.4), at(x + rng:NextNumber(-3, 3), rng:NextNumber(4, 12), z + rng:NextNumber(-3, 3), CFrame.Angles(rng:NextNumber(0, 6), rng:NextNumber(0, 6), rng:NextNumber(0, 6))), rgb(40, 20, 60), GLASS)
+					end
+				end,
+				function(x, z) -- portal ring
+					local c = HSV(0.8)
+					local host
+					for k = 1, 14 do
+						local a = k / 14 * math.pi * 2
+						host = P(Vector3.new(1, 1, 1), at(x, 6 + math.sin(a) * 4, z + math.cos(a) * 4), c, NEON, BALL)
+					end
+					P(Vector3.new(0.2, 7, 7), at(x, 6, z, CFrame.Angles(0, math.rad(90), 0)), c, NEON, CYL, 0.7)
+					emit(host, c, nil, 4, 2, 0.5, 1.5)
+				end,
+				function(x, z) -- glitch cubes
+					for k = 1, 3 do
+						local s = rng:NextNumber(1.5, 3)
+						P(Vector3.new(s, s, s), at(x + k * 2, rng:NextNumber(1, 6), z, CFrame.Angles(0, rng:NextNumber(0, 6), 0)), k % 2 == 0 and rgb(255, 40, 255) or rgb(60, 255, 255), NEON)
+					end
+				end,
+			},
+		}
+		for z = 1, ZONES do
+			local zone = Config.Zones[z]
+			local set = SETS[zone.Decor]
+			if set then
+				local x0, L = Config.ZoneStarts[z], zone.Length
+				local count = math.floor(L / 55)
+				for _, side in ipairs({ -1, 1 }) do
+					for i = 1, count do
+						-- spread evenly along the zone (with a little jitter), in the band next to the wall
+						local x = x0 + 14 + (i - 0.5) * ((L - 28) / count) + rng:NextNumber(-8, 8)
+						local zz = side * rng:NextNumber(RW / 2 - 24, RW / 2 - 9)
+						local build = set[rng:NextInteger(1, #set)]
+						if build == set[5] and zone.Decor == "tree" and rng:NextNumber() > 0.4 then
+							build = set[1] -- keep the (large) real trees rarer
+						end
+						build(x, zz)
+					end
+				end
+			end
+		end
 	end
 
 	-- the entrance: kept clear on purpose - no fountain and no trees here any more (the only trees left are the ones

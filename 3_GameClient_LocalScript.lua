@@ -4783,8 +4783,19 @@ do
 			return
 		end
 		task.spawn(function()
+			local function partCount()
+				local n = 0
+				for _, d in ipairs(m:GetDescendants()) do
+					if d:IsA("BasePart") then
+						n += 1
+					end
+				end
+				return n
+			end
 			local waited = 0
-			while m.Parent and not m.PrimaryPart and waited < 6 do -- wait until the whole model has replicated
+			-- wait until the WHOLE model has arrived (the server records how many parts it has): animating a Goober before its
+			-- eyes/face parts arrive leaves those parts behind where the server first put them
+			while m.Parent and (not m.PrimaryPart or partCount() < (m:GetAttribute("Parts") or 0)) and waited < 6 do
 				task.wait(0.1)
 				waited += 0.1
 			end
@@ -4795,6 +4806,15 @@ do
 			if not (hx and hy and hz) then
 				return
 			end
+			-- a part that still arrives late (e.g. streamed back in) is snapped to where it belongs on the moving body:
+			-- the server built every model at its home position + Yaw, so its offset from the body there is known
+			local serverPose = CFrame.new(hx, hy, hz) * CFrame.Angles(0, m:GetAttribute("Yaw") or 0, 0)
+			m.DescendantAdded:Connect(function(d)
+				local root = m.PrimaryPart
+				if d:IsA("BasePart") and root and d ~= root and animated[m] then
+					d.CFrame = root.CFrame * serverPose:Inverse() * d.CFrame
+				end
+			end)
 			animated[m] = {
 				Kind = kind,
 				Home = Vector3.new(hx, hy, hz),

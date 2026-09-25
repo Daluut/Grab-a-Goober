@@ -164,7 +164,7 @@ Config.WaveTypes = {
 	{ Name = "SLOW FLOOD", Weight = 6, Speed = 14, Height = 3, Thickness = 3, Travel = 60, Local = true, Color = Color3.fromRGB(90, 200, 255), Title = "SLOW FLOOD INCOMING", Sub = "Easy jump", Jumpable = true, Emoji = "🌊🐌" },
 	{ Name = "TRIPLE FLOOD", Weight = 14, Speed = 32, Height = 3.5, Thickness = 3, Travel = 70, Count = 3, Gap = 55, Color = Color3.fromRGB(255, 110, 220), Title = "TRIPLE FLOOD INCOMING!", Sub = "Jump 3 times!", Jumpable = true, Emoji = "🌊🌊🌊" },
 	{ Name = "TIDAL WAVE", Weight = 18, Speed = 24, Height = 16, Thickness = 8, Travel = 100, Color = Color3.fromRGB(40, 130, 255), Title = "TIDAL WAVE INCOMING!", Sub = "Too tall - hide in a gap!", Jumpable = false, Emoji = "🌊⚠️" },
-	{ Name = "RAINBOW WAVE", Weight = 10, Speed = 26, Height = 4, Thickness = 6, Travel = 85, Rainbow = true, Color = Color3.fromRGB(230, 230, 255), Title = "RAINBOW WAVE INCOMING!", Sub = "Pretty AND dangerous - jump it!", Jumpable = true, Emoji = "🌈" },
+	{ Name = "RAINBOW WAVE", Weight = 10, Speed = 26, Height = 5, Thickness = 5, Travel = 85, Rainbow = true, Color = Color3.fromRGB(230, 230, 255), Title = "RAINBOW WAVE INCOMING!", Sub = "Pretty AND dangerous - jump it!", Jumpable = true, Emoji = "🌈" },
 	{ Name = "WACKY WAVE", Weight = 12, Speed = 22, Height = 20, Thickness = 3, Travel = 45, HalfWidth = true, SideToSide = true, Color = Color3.fromRGB(255, 140, 220), Title = "WACKY WAVE INCOMING!", Sub = "Too tall to jump - run to the open side!", Jumpable = false, Emoji = "🤪" },
 	{ Name = "IMPOSSIBLE FLOOD", Weight = 12, Speed = 34, Height = 60, Thickness = 12, Travel = 110, Color = Color3.fromRGB(255, 40, 40), Title = "IMPOSSIBLE FLOOD INCOMING!!!", Sub = "HIDE IN A GAP!!!", Jumpable = false, Emoji = "🔥👿" },
 }
