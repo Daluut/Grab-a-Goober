@@ -172,6 +172,10 @@ Config.WaveTypes = {
 Config.LuckyBoxCost = 2000
 Config.LockCost = 25000 -- (was 1000)
 Config.LockSeconds = 30 -- 30 seconds (was 30 minutes)
+Config.LockGrowth = 1.5 -- every Base Lock you buy makes your next one 50% pricier
+function Config.LockPrice(buys) -- buys = how many Base Locks this player has bought before
+	return math.floor(Config.LockCost * Config.LockGrowth ^ (buys or 0))
+end
 Config.SuperLockSeconds = 300
 -- (Config.CashPackMin removed along with the Cash Pack product)
 -- DONATION THANK-YOUS: the message gets more excited the more someone has donated in TOTAL (not just this purchase).

@@ -526,6 +526,7 @@ local function updateStats(player)
 	player:SetAttribute("FloorsLvl", d.FloorLvl)
 	player:SetAttribute("LuckLvl", d.LuckLvl)
 	player:SetAttribute("CarryCap", carryCapOf(d))
+	player:SetAttribute("LockBuys", d.ShopBuys.BaseLock or 0) -- the Upgrades tab shows the climbing Base Lock price from this
 	player:SetAttribute("MutPerks", table.concat(perksOf(d).Names, ",")) -- the client shows these as perk chips
 	player:SetAttribute("MaxSlots", Config.MaxSlots(d.SlotLvl, d.FloorLvl))
 	player:SetAttribute("UsedSlots", #d.Placed)
@@ -1693,11 +1694,15 @@ local function lockBase(player)
 		notify(player, "Already locked", GOLD)
 		return
 	end
-	if d.Cash < Config.LockCost then
-		notify(player, "Need $" .. Config.Format(Config.LockCost), RED)
+	local buys = d.ShopBuys.BaseLock or 0
+	local price = Config.LockPrice(buys) -- climbs every time you buy one
+	if d.Cash < price then
+		notify(player, "Need $" .. Config.Format(price), RED)
 		return
 	end
-	d.Cash -= Config.LockCost
+	d.Cash -= price
+	d.ShopBuys.BaseLock = buys + 1
+	player:SetAttribute("LockBuys", buys + 1)
 	startLock(player, Config.LockSeconds)
 	notify(player, "", GREEN, "buy")
 end

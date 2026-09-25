@@ -1781,8 +1781,9 @@ do
 				setBtn(r.Btn, "$" .. F(cost), cash >= cost and GREEN or GREY)
 			end
 		end
-		lockRow.Btn.Text = "$" .. F(Config.LockCost)
-		lockRow.Btn.BackgroundColor3 = cash >= Config.LockCost and GREEN or GREY
+		local lockPrice = Config.LockPrice(player:GetAttribute("LockBuys") or 0) -- goes up every time you buy one
+		lockRow.Btn.Text = "$" .. F(lockPrice)
+		lockRow.Btn.BackgroundColor3 = cash >= lockPrice and GREEN or GREY
 	end
 
 end
